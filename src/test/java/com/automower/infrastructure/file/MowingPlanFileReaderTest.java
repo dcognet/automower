@@ -4,6 +4,7 @@ import com.automower.domain.MowingPlan;
 import com.automower.domain.exception.BusinessErrorCode;
 import com.automower.domain.exception.BusinessValidationException;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.io.TempDir;
@@ -23,6 +24,7 @@ import java.util.stream.Stream;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class MowingPlanFileReaderTest {
 
@@ -101,9 +103,10 @@ class MowingPlanFileReaderTest {
 
     @Test
     @EnabledOnOs(OS.LINUX)
+    @Timeout(10)
     void shouldStopReadingAtLimit_whenSpecialFileAnnouncesSizeZeroButStreamsMore() throws Exception {
         Path fifo = tempDir.resolve("input.fifo");
-        new ProcessBuilder("mkfifo", fifo.toString()).start().waitFor();
+        assumeTrue(new ProcessBuilder("mkfifo", fifo.toString()).start().waitFor() == 0);
         // un pipe nommé annonce une taille de 0 : seule la lecture plafonnée borne la mémoire
         Thread producer = Thread.ofPlatform().daemon().start(() -> streamMoreThanLimit(fifo));
 

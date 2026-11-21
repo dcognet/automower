@@ -16,6 +16,7 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -189,24 +190,59 @@ class MowerCliIntegrationTest {
      * Scénario : l'erreur porte sur le fichier entier, elle est détectée avant toute analyse des lignes
      * Résultat : stdout vaut exactement "ERROR: <description>\n", sans numéro de ligne, code de sortie 1
      */
-    @Test
-    void run_unusableFile_printsWholeFileErrorWithoutLineNumber() throws Exception {
-        Path missing = tempDir.resolve("missing.txt");
-        Path empty = Path.of(generatedFile(new byte[0]));
-        Path tooLarge = Path.of(generatedFile(new byte[10_000_001]));
-        Path notUtf8 = Path.of(generatedFile(new byte[]{'5', ' ', '5', '\n', (byte) 0xFF}));
+    @ParameterizedTest
+    @MethodSource("unusableFiles")
+    void run_unusableFile_printsWholeFileErrorWithoutLineNumber(UnusableFile unusableFile) throws Exception {
+        Path input = unusableFile.create(this);
 
-        assertThat(runAndCapture(missing)).isEqualTo("ERROR: file not found: " + missing + "\n");
-        assertThat(runAndCapture(tempDir)).isEqualTo("ERROR: path is a directory: " + tempDir + "\n");
-        assertThat(runAndCapture(empty)).isEqualTo("ERROR: file is empty\n");
-        assertThat(runAndCapture(tooLarge)).isEqualTo("ERROR: file size 10000001 bytes exceeds limit of 10000000 bytes\n");
-        assertThat(runAndCapture(notUtf8)).isEqualTo("ERROR: file is not valid UTF-8\n");
+        int exitCode = cli.run(new String[]{input.toString()});
+
+        assertThat(exitCode).isEqualTo(1);
+        assertThat(stdout.toString(StandardCharsets.UTF_8)).isEqualTo("ERROR: " + unusableFile.expectedDescription(input) + "\n");
     }
 
-    private String runAndCapture(Path input) throws IOException {
-        stdout.reset();
-        assertThat(cli.run(new String[]{input.toString()})).isEqualTo(1);
-        return stdout.toString(StandardCharsets.UTF_8);
+    private static Stream<UnusableFile> unusableFiles() {
+        return Stream.of(
+                new UnusableFile("missing", test -> test.tempDir.resolve("missing.txt"), path -> "file not found: " + path),
+                new UnusableFile("directory", test -> test.tempDir, path -> "path is a directory: " + path),
+                new UnusableFile("empty", test -> test.generatedPath(new byte[0]), path -> "file is empty"),
+                new UnusableFile("too large", test -> test.generatedPath(new byte[10_000_001]), path -> "file size 10000001 bytes exceeds limit of 10000000 bytes"),
+                new UnusableFile("not UTF-8", test -> test.generatedPath(new byte[]{'5', ' ', '5', '\n', (byte) 0xFF}), path -> "file is not valid UTF-8")
+        );
+    }
+
+    private record UnusableFile(String name, FileFactory factory, Function<Path, String> description) {
+
+        Path create(MowerCliIntegrationTest test) throws IOException {
+            return factory.create(test);
+        }
+
+        String expectedDescription(Path path) {
+            return description.apply(path);
+        }
+
+        @Override
+        public String toString() {
+            return name;
+        }
+    }
+
+    @FunctionalInterface
+    private interface FileFactory {
+        Path create(MowerCliIntegrationTest test) throws IOException;
+    }
+
+    /**
+     * Entrée : argument qui n'est pas un chemin valide pour le système (caractère NUL)
+     * Scénario : le chemin est traité comme un fichier absent, le caractère invisible est échappé dans le message
+     * Résultat : stdout vaut exactement "ERROR: file not found: bad\\u0000path\n", code de sortie 1
+     */
+    @Test
+    void run_invalidPathArgument_printsFileNotFound() throws Exception {
+        int exitCode = cli.run(new String[]{"bad\u0000path"});
+
+        assertThat(exitCode).isEqualTo(1);
+        assertThat(stdout.toString(StandardCharsets.UTF_8)).isEqualTo("ERROR: file not found: bad\\u0000path\n");
     }
 
     private static Stream<Arguments> invalidArguments() {
@@ -243,6 +279,10 @@ class MowerCliIntegrationTest {
                 Arguments.of(utf8("5 5\r1 2 N\nF\n"), "ERROR line 1: invalid character '\\r'"),
                 Arguments.of(concat(byteOrderMark, utf8("5 5\n1 2 N\nF\n")), "ERROR line 1: unexpected byte order mark")
         );
+    }
+
+    private Path generatedPath(byte[] content) throws IOException {
+        return Path.of(generatedFile(content));
     }
 
     private String generatedFile(byte[] content) throws IOException {
