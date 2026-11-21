@@ -25,7 +25,7 @@ class MowerTest {
 
     @ParameterizedTest
     @CsvSource({"N, 2, 3", "E, 3, 2", "S, 2, 1", "W, 1, 2"})
-    void shouldMoveOneCellFacingDirection_whenMovingForward(char orientation, int expectedX, int expectedY) {
+    void shouldMoveOneCellFacingDirection_whenMovingForward(String orientation, int expectedX, int expectedY) {
         Mower mower = new Mower(CENTER, Orientation.fromCode(orientation));
 
         Mower moved = mower.execute(Instruction.FORWARD, emptyGrid);
@@ -35,7 +35,7 @@ class MowerTest {
 
     @ParameterizedTest
     @CsvSource({"0, 3, W", "5, 3, E", "3, 0, S", "3, 5, N"})
-    void shouldStayStill_whenMovingForwardOutOfLawn(int x, int y, char orientation) {
+    void shouldStayStill_whenMovingForwardOutOfLawn(int x, int y, String orientation) {
         Mower mower = new Mower(new Position(x, y), Orientation.fromCode(orientation));
 
         assertThat(mower.execute(Instruction.FORWARD, emptyGrid)).isEqualTo(mower);

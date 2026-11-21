@@ -3,6 +3,8 @@ package com.automower.infrastructure.cli;
 import com.automower.application.MowLawnUseCase;
 import com.automower.infrastructure.file.MowingPlanFileReader;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -16,7 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class MowerCliIntegrationTest {
 
     private final ByteArrayOutputStream stdout = new ByteArrayOutputStream();
-    private final MowerCli cli = new MowerCli(new MowLawnUseCase(new MowingPlanFileReader(), new MowerOutputWriter(stdout)));
+    private final MowerCli cli = newCli();
 
     /**
      * Entrée : exemple de référence complet (5 5 / 1 2 N / LFLFLFLFF / 3 3 E / FFRFFRFRRF)
@@ -94,6 +96,30 @@ class MowerCliIntegrationTest {
 
         assertThat(exitCode).isZero();
         assertThat(stdout.toString(StandardCharsets.UTF_8)).isEqualTo("0 2 N\n0 3 S\n40075016 40075016 N\n");
+    }
+
+    /**
+     * Entrée : fichier dont une ligne est non conforme, après une tondeuse valide (orientation X en ligne 4),
+     * sur la dernière ligne (instruction A en ligne 5), ou absente (ligne d'instructions attendue en ligne 3)
+     * Scénario : le fichier est rejeté en entier avant toute exécution, seule l'erreur est écrite
+     * Résultat : stdout vaut exactement "ERROR line <n>: <description>\n", aucune position, code de sortie 1
+     */
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+            "invalid-orientation.txt      | ERROR line 4: invalid orientation 'X'",
+            "invalid-instruction.txt      | ERROR line 5: invalid instruction 'A'",
+            "missing-instruction-line.txt | ERROR line 3: missing instruction line"
+    })
+    void run_malformedLine_printsOnlyErrorWithLineNumber(String fixture, String expectedError) throws Exception {
+        int exitCode = cli.run(new String[]{fixture(fixture)});
+
+        assertThat(exitCode).isEqualTo(1);
+        assertThat(stdout.toByteArray()).isEqualTo((expectedError + "\n").getBytes(StandardCharsets.UTF_8));
+    }
+
+    private MowerCli newCli() {
+        MowerOutputWriter mowerOutputWriter = new MowerOutputWriter(stdout);
+        return new MowerCli(new MowLawnUseCase(new MowingPlanFileReader(), mowerOutputWriter), mowerOutputWriter);
     }
 
     private static String fixture(String name) throws URISyntaxException, IOException {

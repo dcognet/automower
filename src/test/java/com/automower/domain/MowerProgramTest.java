@@ -34,11 +34,11 @@ class MowerProgramTest {
     @ParameterizedTest
     @CsvSource({"E, FFFFFFL, 5, 0, N", "N, FFFFR, 0, 3, E"})
     void shouldUseIndependentBounds_whenLawnIsRectangular(
-            char orientation,
+            String orientation,
             String instructions,
             int expectedX,
             int expectedY,
-            char expectedOrientation
+            String expectedOrientation
     ) {
         MowerProgram program = new MowerProgram(new Mower(new Position(0, 0), Orientation.fromCode(orientation)), instructions);
 
@@ -54,6 +54,16 @@ class MowerProgramTest {
 
         assertThat(exception.getCode()).isEqualTo(BusinessErrorCode.INVALID_INSTRUCTION);
         assertThat(exception).hasMessage("invalid instruction 'X'");
+    }
+
+    @Test
+    void shouldRejectAtConstruction_whenSequenceIsEmpty() {
+        Mower mower = new Mower(new Position(0, 0), Orientation.NORTH);
+
+        BusinessValidationException exception = catchThrowableOfType(BusinessValidationException.class, () -> new MowerProgram(mower, ""));
+
+        assertThat(exception.getCode()).isEqualTo(BusinessErrorCode.EMPTY_INSTRUCTIONS);
+        assertThat(exception).hasMessage("empty instruction sequence");
     }
 
     private static OccupancyGrid emptyGrid(Lawn lawn) {

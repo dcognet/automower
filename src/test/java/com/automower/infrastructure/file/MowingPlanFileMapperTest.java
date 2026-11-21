@@ -6,11 +6,19 @@ import com.automower.domain.MowerProgram;
 import com.automower.domain.MowingPlan;
 import com.automower.domain.Orientation;
 import com.automower.domain.Position;
+import com.automower.domain.exception.BusinessErrorCode;
+import com.automower.domain.exception.BusinessValidationException;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.List;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
 class MowingPlanFileMapperTest {
 
@@ -31,5 +39,121 @@ class MowingPlanFileMapperTest {
                 new MowerProgram(new Mower(new Position(3, 3), Orientation.EAST), "FFRFFRFRRF"),
                 new MowerProgram(new Mower(new Position(0, 0), Orientation.SOUTH), "R")
         );
+    }
+
+    @Test
+    void shouldConvertCoordinates_whenWrittenWithNineDigits() {
+        MowingPlan plan = MowingPlanFileMapper.toMowingPlan(List.of("999999999 999999999", "999999999 0 N", "F"));
+
+        assertThat(plan.lawn()).isEqualTo(new Lawn(999999999, 999999999));
+        assertThat(plan.programs().getFirst().mower().position()).isEqualTo(new Position(999999999, 0));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"LFA", "lf", "L F"})
+    void shouldRejectInstructionLine_whenSequenceContainsUnknownInstruction(String instructions) {
+        BusinessValidationException exception = reject(List.of("5 5", "1 2 N", instructions));
+
+        assertThat(exception.getCode()).isEqualTo(BusinessErrorCode.INVALID_INSTRUCTION);
+        assertThat(exception.getLineNumber()).hasValue(3);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"n", "X", "NE"})
+    void shouldRejectPositionLine_whenOrientationIsUnknown(String orientation) {
+        BusinessValidationException exception = reject(List.of("5 5", "1 2 N", "F", "1 3 " + orientation, "F"));
+
+        assertThat(exception.getCode()).isEqualTo(BusinessErrorCode.INVALID_ORIENTATION);
+        assertThat(exception).hasMessage("invalid orientation '" + orientation + "'");
+        assertThat(exception.getLineNumber()).hasValue(4);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"05", "00", "+3", "-0", "-1", "\uFF15", "\u0665", "1.5", "1e3", "abc", "A", "1234567890"})
+    void shouldRejectCoordinate_whenNotWrittenAsAsciiNaturalNumber(String coordinate) {
+        BusinessValidationException onLawn = reject(List.of("5 " + coordinate, "1 2 N", "F"));
+        BusinessValidationException onPosition = reject(List.of("5 5", coordinate + " 2 N", "F"));
+
+        assertThat(onLawn.getCode()).isEqualTo(BusinessErrorCode.INVALID_COORDINATE);
+        assertThat(onLawn).hasMessage("invalid coordinate '" + coordinate + "'");
+        assertThat(onLawn.getLineNumber()).hasValue(1);
+        assertThat(onPosition.getCode()).isEqualTo(BusinessErrorCode.INVALID_COORDINATE);
+        assertThat(onPosition.getLineNumber()).hasValue(2);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"5", "5 5 5", "5\t5", "5\u00A05", "5  5", " 5 5", "5 5 "})
+    void shouldRejectLawnLine_whenNotExactlyTwoValuesSeparatedBySingleSpace(String lawnLine) {
+        BusinessValidationException exception = reject(List.of(lawnLine, "1 2 N", "F"));
+
+        assertThat(exception.getCode()).isEqualTo(BusinessErrorCode.INVALID_LAWN_LINE);
+        assertThat(exception).hasMessage("lawn line must contain 2 values separated by a single space");
+        assertThat(exception.getLineNumber()).hasValue(1);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"1 2", "1 2 N X", "1 2N", "1\t2 N", "1 2\u00A0N", "1  2 N", " 1 2 N", "1 2 N "})
+    void shouldRejectPositionLine_whenNotExactlyThreeValuesSeparatedBySingleSpace(String positionLine) {
+        BusinessValidationException exception = reject(List.of("5 5", positionLine, "F"));
+
+        assertThat(exception.getCode()).isEqualTo(BusinessErrorCode.INVALID_POSITION_LINE);
+        assertThat(exception).hasMessage("position line must contain 3 values separated by a single space");
+        assertThat(exception.getLineNumber()).hasValue(2);
+    }
+
+    @Test
+    void shouldRejectInstructionLine_whenSequenceIsEmpty() {
+        BusinessValidationException exception = reject(List.of("5 5", "1 2 N", ""));
+
+        assertThat(exception.getCode()).isEqualTo(BusinessErrorCode.EMPTY_INSTRUCTIONS);
+        assertThat(exception.getLineNumber()).hasValue(3);
+    }
+
+    @ParameterizedTest
+    @MethodSource("filesWithMissingInstructionLine")
+    void shouldRejectExpectedInstructionLine_whenPositionHasNoInstructionLine(List<String> lines, int expectedLine) {
+        BusinessValidationException exception = reject(lines);
+
+        assertThat(exception.getCode()).isEqualTo(BusinessErrorCode.MISSING_INSTRUCTIONS);
+        assertThat(exception).hasMessage("missing instruction line");
+        assertThat(exception.getLineNumber()).hasValue(expectedLine);
+    }
+
+    @Test
+    void shouldRejectSecondLine_whenFileDefinesLawnButNoMower() {
+        BusinessValidationException exception = reject(List.of("5 5"));
+
+        assertThat(exception.getCode()).isEqualTo(BusinessErrorCode.MISSING_MOWER);
+        assertThat(exception).hasMessage("missing mower position line");
+        assertThat(exception.getLineNumber()).hasValue(2);
+    }
+
+    @ParameterizedTest
+    @MethodSource("filesWithSeveralErrors")
+    void shouldReportOnlyFirstErrorInLineOrder_whenFileContainsSeveralErrors(List<String> lines, int expectedLine, BusinessErrorCode expectedCode) {
+        BusinessValidationException exception = reject(lines);
+
+        assertThat(exception.getCode()).isEqualTo(expectedCode);
+        assertThat(exception.getLineNumber()).hasValue(expectedLine);
+    }
+
+    private static Stream<Arguments> filesWithMissingInstructionLine() {
+        return Stream.of(
+                Arguments.of(List.of("5 5", "1 2 N"), 3),
+                Arguments.of(List.of("5 5", "1 2 N", "F", "3 3 E"), 5)
+        );
+    }
+
+    private static Stream<Arguments> filesWithSeveralErrors() {
+        return Stream.of(
+                Arguments.of(List.of("5 A", "1 2 X", ""), 1, BusinessErrorCode.INVALID_COORDINATE),
+                Arguments.of(List.of("5 5", "1 2 X", "LFA"), 2, BusinessErrorCode.INVALID_ORIENTATION),
+                Arguments.of(List.of("5 5", "1 2 N", "LFA", "-1 3 E"), 3, BusinessErrorCode.INVALID_INSTRUCTION),
+                Arguments.of(List.of("5 5", "1 2 N", "F", "3 3 n", "X"), 4, BusinessErrorCode.INVALID_ORIENTATION)
+        );
+    }
+
+    private static BusinessValidationException reject(List<String> lines) {
+        return catchThrowableOfType(BusinessValidationException.class, () -> MowingPlanFileMapper.toMowingPlan(lines));
     }
 }

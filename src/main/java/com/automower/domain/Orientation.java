@@ -19,12 +19,12 @@ public enum Orientation {
         this.dy = dy;
     }
 
-    public static Orientation fromCode(char code) {
+    public static Orientation fromCode(String code) {
         return switch (code) {
-            case 'N' -> NORTH;
-            case 'E' -> EAST;
-            case 'S' -> SOUTH;
-            case 'W' -> WEST;
+            case "N" -> NORTH;
+            case "E" -> EAST;
+            case "S" -> SOUTH;
+            case "W" -> WEST;
             default -> throw new BusinessValidationException(BusinessErrorCode.INVALID_ORIENTATION, "invalid orientation '" + code + "'");
         };
     }
