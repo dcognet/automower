@@ -118,6 +118,10 @@
                     <targetTests>
                         <param>com.automower.*</param>
                     </targetTests>
+                    <!-- tests de charge : n'apportent aucun mutant tué de plus et multiplieraient la durée de l'analyse -->
+                    <excludedTestClasses>
+                        <param>com.automower.*LoadIntegrationTest</param>
+                    </excludedTestClasses>
                     <outputFormats>
                         <param>XML</param>
                         <param>HTML</param>

@@ -31,6 +31,14 @@ public class MowerCli {
     }
 
     public int run(String[] args) throws IOException {
+        try {
+            return execute(args);
+        } finally {
+            mowerOutputWriter.flush();
+        }
+    }
+
+    private int execute(String[] args) throws IOException {
         // pas de lecture sur l'entrée standard : un seul argument, le chemin du fichier
         if (args.length != 1) {
             mowerOutputWriter.writeError(USAGE);

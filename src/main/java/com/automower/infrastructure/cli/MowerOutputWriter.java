@@ -3,6 +3,7 @@ package com.automower.infrastructure.cli;
 import com.automower.domain.Mower;
 import com.automower.domain.exception.BusinessValidationException;
 
+import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
@@ -11,12 +12,13 @@ import java.nio.charset.StandardCharsets;
 
 public class MowerOutputWriter {
 
-    private static final String LINE_END = "\n";
+    private static final char LINE_END = '\n';
 
-    private final OutputStream stdout;
+    // tampon vidé une seule fois en fin d'exécution : jusqu'à 10⁶ lignes sans un appel système par ligne
+    private final Writer stdout;
 
     public MowerOutputWriter(OutputStream stdout) {
-        this.stdout = stdout;
+        this.stdout = new BufferedWriter(new OutputStreamWriter(stdout, StandardCharsets.UTF_8));
     }
 
     public void write(Mower mower) throws IOException {
@@ -31,9 +33,12 @@ public class MowerOutputWriter {
         writeLine(ErrorFormatter.format(description));
     }
 
+    public void flush() throws IOException {
+        stdout.flush();
+    }
+
     private void writeLine(String line) throws IOException {
-        Writer writer = new OutputStreamWriter(stdout, StandardCharsets.UTF_8);
-        writer.write(line + LINE_END);
-        writer.flush();
+        stdout.write(line);
+        stdout.write(LINE_END);
     }
 }
