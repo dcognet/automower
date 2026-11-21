@@ -9,10 +9,10 @@ public record MowerProgram(Mower mower, String instructions) {
         }
     }
 
-    public Mower runOn(Lawn lawn) {
+    public Mower runOn(OccupancyGrid grid) {
         Mower current = mower;
         for (int i = 0; i < instructions.length(); i++) {
-            current = current.execute(Instruction.fromCode(instructions.charAt(i)), lawn);
+            current = current.execute(Instruction.fromCode(instructions.charAt(i)), grid);
         }
         return current;
     }
