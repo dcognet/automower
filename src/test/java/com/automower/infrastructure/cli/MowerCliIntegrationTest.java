@@ -170,6 +170,52 @@ class MowerCliIntegrationTest {
         assertThat(stdout.toString(StandardCharsets.UTF_8)).isEqualTo(expectedError + "\n");
     }
 
+    /**
+     * Entrée : appel sans argument, ou avec deux arguments
+     * Scénario : la CLI attend exactement un chemin de fichier et ne lit jamais l'entrée standard
+     * Résultat : stdout vaut exactement "ERROR: usage: mower <file>\n", code de sortie 2
+     */
+    @ParameterizedTest
+    @MethodSource("invalidArguments")
+    void run_wrongNumberOfArguments_printsUsageWithExitCodeTwo(String[] args) throws Exception {
+        int exitCode = cli.run(args);
+
+        assertThat(exitCode).isEqualTo(2);
+        assertThat(stdout.toString(StandardCharsets.UTF_8)).isEqualTo("ERROR: usage: mower <file>\n");
+    }
+
+    /**
+     * Entrée : chemin absent, dossier, fichier vide, fichier de 10000001 octets, fichier non UTF-8
+     * Scénario : l'erreur porte sur le fichier entier, elle est détectée avant toute analyse des lignes
+     * Résultat : stdout vaut exactement "ERROR: <description>\n", sans numéro de ligne, code de sortie 1
+     */
+    @Test
+    void run_unusableFile_printsWholeFileErrorWithoutLineNumber() throws Exception {
+        Path missing = tempDir.resolve("missing.txt");
+        Path empty = Path.of(generatedFile(new byte[0]));
+        Path tooLarge = Path.of(generatedFile(new byte[10_000_001]));
+        Path notUtf8 = Path.of(generatedFile(new byte[]{'5', ' ', '5', '\n', (byte) 0xFF}));
+
+        assertThat(runAndCapture(missing)).isEqualTo("ERROR: file not found: " + missing + "\n");
+        assertThat(runAndCapture(tempDir)).isEqualTo("ERROR: path is a directory: " + tempDir + "\n");
+        assertThat(runAndCapture(empty)).isEqualTo("ERROR: file is empty\n");
+        assertThat(runAndCapture(tooLarge)).isEqualTo("ERROR: file size 10000001 bytes exceeds limit of 10000000 bytes\n");
+        assertThat(runAndCapture(notUtf8)).isEqualTo("ERROR: file is not valid UTF-8\n");
+    }
+
+    private String runAndCapture(Path input) throws IOException {
+        stdout.reset();
+        assertThat(cli.run(new String[]{input.toString()})).isEqualTo(1);
+        return stdout.toString(StandardCharsets.UTF_8);
+    }
+
+    private static Stream<Arguments> invalidArguments() {
+        return Stream.of(
+                Arguments.of((Object) new String[]{}),
+                Arguments.of((Object) new String[]{"a.txt", "b.txt"})
+        );
+    }
+
     private static Stream<Arguments> inconsistentPlans() {
         return Stream.of(
                 Arguments.of("0 0\n0 0 N\nF\n", "ERROR line 1: lawn 0 0 must contain more than one cell"),
