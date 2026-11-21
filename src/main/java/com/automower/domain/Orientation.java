@@ -42,10 +42,20 @@ public enum Orientation {
     }
 
     public Orientation left() {
-        return values()[(ordinal() + 3) % 4];
+        return switch (this) {
+            case NORTH -> WEST;
+            case WEST -> SOUTH;
+            case SOUTH -> EAST;
+            case EAST -> NORTH;
+        };
     }
 
     public Orientation right() {
-        return values()[(ordinal() + 1) % 4];
+        return switch (this) {
+            case NORTH -> EAST;
+            case EAST -> SOUTH;
+            case SOUTH -> WEST;
+            case WEST -> NORTH;
+        };
     }
 }

@@ -1,10 +1,13 @@
 package com.automower.domain;
 
+import com.automower.domain.exception.BusinessErrorCode;
+import com.automower.domain.exception.BusinessValidationException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
 class MowerProgramTest {
 
@@ -39,5 +42,15 @@ class MowerProgramTest {
 
         Mower expected = new Mower(new Position(expectedX, expectedY), Orientation.fromCode(expectedOrientation));
         assertThat(program.runOn(new Lawn(5, 3))).isEqualTo(expected);
+    }
+
+    @Test
+    void shouldRejectAtConstruction_whenSequenceContainsUnknownInstruction() {
+        Mower mower = new Mower(new Position(0, 0), Orientation.NORTH);
+
+        BusinessValidationException exception = catchThrowableOfType(BusinessValidationException.class, () -> new MowerProgram(mower, "FLX"));
+
+        assertThat(exception.getCode()).isEqualTo(BusinessErrorCode.INVALID_INSTRUCTION);
+        assertThat(exception).hasMessage("invalid instruction 'X'");
     }
 }
