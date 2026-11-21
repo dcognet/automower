@@ -9,8 +9,6 @@ import org.junit.jupiter.params.provider.CsvSource;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import java.util.List;
-
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
 class MowerProgramTest {
