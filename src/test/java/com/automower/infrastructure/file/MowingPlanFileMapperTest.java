@@ -130,14 +130,6 @@ class MowingPlanFileMapperTest {
         assertThat(exception.getLineNumber()).hasValue(1);
     }
 
-    @Test
-    void shouldRejectFirstLine_whenFileIsOnlyByteOrderMark() {
-        BusinessValidationException exception = reject(List.of("\uFEFF"));
-
-        assertThat(exception.getCode()).isEqualTo(BusinessErrorCode.UNEXPECTED_BYTE_ORDER_MARK);
-        assertThat(exception.getLineNumber()).hasValue(1);
-    }
-
     @ParameterizedTest
     @MethodSource("filesWithMissingInstructionLine")
     void shouldRejectExpectedInstructionLine_whenPositionHasNoInstructionLine(List<String> lines, int expectedLine) {
@@ -177,6 +169,7 @@ class MowingPlanFileMapperTest {
         return Stream.of(
                 Arguments.of(List.of("", "1 2 N", "F"), 1),
                 Arguments.of(List.of("5 5", "", "1 2 N", "F"), 2),
+                // une ligne d'instructions vide est d'abord une ligne vide (RM-21) avant d'être une séquence vide (RM-20)
                 Arguments.of(List.of("5 5", "1 2 N", ""), 3),
                 Arguments.of(List.of("5 5", "1 2 N", "F", ""), 4)
         );

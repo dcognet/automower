@@ -2,6 +2,8 @@ package com.automower.infrastructure.cli;
 
 import com.automower.domain.exception.BusinessValidationException;
 
+import java.util.stream.Collectors;
+
 public final class ErrorFormatter {
 
     private static final String PREFIX = "ERROR";
@@ -12,18 +14,20 @@ public final class ErrorFormatter {
 
     public static String format(BusinessValidationException exception) {
         String location = exception.getLineNumber().isPresent() ? " line " + exception.getLineNumber().getAsInt() : "";
-        return PREFIX + location + ": " + escapeControlCharacters(exception.getMessage());
+        return PREFIX + location + ": " + escapeInvisibleCharacters(exception.getMessage());
     }
 
-    // un caractère de contrôle cité dans le message est échappé pour garder une seule ligne lisible
-    private static String escapeControlCharacters(String message) {
-        StringBuilder escaped = new StringBuilder(message.length());
-        message.chars().forEach(character -> escaped.append(escape((char) character)));
-        return escaped.toString();
+    // un caractère invisible cité dans le message est échappé pour garder une seule ligne lisible
+    private static String escapeInvisibleCharacters(String message) {
+        return message.chars()
+                .mapToObj(character -> escape((char) character))
+                .collect(Collectors.joining());
     }
 
     private static String escape(char character) {
         return switch (character) {
+            // le backslash est doublé : un \r échappé ne se confond pas avec un backslash suivi de r
+            case '\\' -> "\\\\";
             case '\t' -> "\\t";
             case '\r' -> "\\r";
             case '\n' -> "\\n";

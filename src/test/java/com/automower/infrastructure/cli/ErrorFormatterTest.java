@@ -25,14 +25,15 @@ class ErrorFormatterTest {
                 Arguments.of("\r", "\\r"),
                 Arguments.of("5\t5", "5\\t5"),
                 Arguments.of("N\n", "N\\n"),
-                Arguments.of("﻿5", "\\uFEFF5"),
+                Arguments.of("\uFEFF5", "\\uFEFF5"),
                 Arguments.of("\u0000", "\\u0000"),
                 Arguments.of("\u0085", "\\u0085"),
-                Arguments.of(" ", "\\u2028"),
-                Arguments.of(" ", "\\u2029"),
-                Arguments.of("٥", "٥"),
-                Arguments.of("é", "é"),
-                Arguments.of("5 5", "5 5")
+                Arguments.of("\u2028", "\\u2028"),
+                Arguments.of("\u2029", "\\u2029"),
+                Arguments.of("a\\rb", "a\\\\rb"),
+                Arguments.of("\u0665", "\u0665"),
+                Arguments.of("\u00E9", "\u00E9"),
+                Arguments.of("5\u00A05", "5\u00A05")
         );
     }
 }
