@@ -10,14 +10,16 @@ import com.automower.infrastructure.cli.MowerOutputWriter;
 import com.automower.infrastructure.file.MowingPlanFileReader;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
 
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -35,12 +37,16 @@ class MowLawnUseCaseTest {
     private MowLawnUseCase mowLawnUseCase;
 
     @Test
-    void shouldWriteFinalMower_whenPlanDescribesOneMower() throws IOException {
-        MowerProgram program = new MowerProgram(new Mower(new Position(1, 2), Orientation.NORTH), "LFLFLFLFF");
-        when(mowingPlanFileReader.read(INPUT_FILE)).thenReturn(new MowingPlan(new Lawn(5, 5), program));
+    void shouldWriteFinalMowersInFileOrder_whenPlanDescribesSeveralMowers() throws IOException {
+        MowerProgram first = new MowerProgram(new Mower(new Position(1, 2), Orientation.NORTH), "LFLFLFLFF");
+        MowerProgram second = new MowerProgram(new Mower(new Position(3, 3), Orientation.EAST), "FFRFFRFRRF");
+        when(mowingPlanFileReader.read(INPUT_FILE)).thenReturn(new MowingPlan(new Lawn(5, 5), List.of(first, second)));
 
         mowLawnUseCase.mow(INPUT_FILE);
 
-        verify(mowerOutputWriter).write(new Mower(new Position(1, 3), Orientation.NORTH));
+        InOrder inOrder = inOrder(mowerOutputWriter);
+        inOrder.verify(mowerOutputWriter).write(new Mower(new Position(1, 3), Orientation.NORTH));
+        inOrder.verify(mowerOutputWriter).write(new Mower(new Position(5, 1), Orientation.EAST));
+        inOrder.verifyNoMoreInteractions();
     }
 }

@@ -20,7 +20,8 @@ public class MowLawnUseCase {
 
     public void mow(Path inputFile) throws IOException {
         MowingPlan plan = mowingPlanFileReader.read(inputFile);
-        Mower finalMower = plan.run();
-        mowerOutputWriter.write(finalMower);
+        for (Mower finalMower : plan.run()) {
+            mowerOutputWriter.write(finalMower);
+        }
     }
 }

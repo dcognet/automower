@@ -19,16 +19,16 @@ class MowerCliIntegrationTest {
     private final MowerCli cli = new MowerCli(new MowLawnUseCase(new MowingPlanFileReader(), new MowerOutputWriter(stdout)));
 
     /**
-     * Entrée : première tondeuse de l'exemple de référence (5 5 / 1 2 N / LFLFLFLFF)
-     * Scénario : exécution nominale d'une tondeuse
-     * Résultat : stdout vaut exactement "1 3 N\n", code de sortie 0
+     * Entrée : exemple de référence complet (5 5 / 1 2 N / LFLFLFLFF / 3 3 E / FFRFFRFRRF)
+     * Scénario : deux tondeuses exécutées l'une après l'autre, dans l'ordre du fichier
+     * Résultat : stdout vaut exactement "1 3 N\n5 1 E\n", code de sortie 0
      */
     @Test
-    void run_referenceFirstMower_printsFinalPosition() throws Exception {
-        int exitCode = cli.run(new String[]{fixture("reference-first-mower.txt")});
+    void run_referenceExample_printsOneLinePerMowerInFileOrder() throws Exception {
+        int exitCode = cli.run(new String[]{fixture("reference-example.txt")});
 
         assertThat(exitCode).isZero();
-        assertThat(stdout.toByteArray()).isEqualTo("1 3 N\n".getBytes(StandardCharsets.UTF_8));
+        assertThat(stdout.toByteArray()).isEqualTo("1 3 N\n5 1 E\n".getBytes(StandardCharsets.UTF_8));
     }
 
     /**

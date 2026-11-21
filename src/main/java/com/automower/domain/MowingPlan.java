@@ -1,8 +1,15 @@
 package com.automower.domain;
 
-public record MowingPlan(Lawn lawn, MowerProgram program) {
+import java.util.List;
 
-    public Mower run() {
-        return program.runOn(lawn);
+public record MowingPlan(Lawn lawn, List<MowerProgram> programs) {
+
+    public MowingPlan {
+        programs = List.copyOf(programs);
+    }
+
+    public List<Mower> run() {
+        // exécution séquentielle : la tondeuse n+1 ne bouge qu'une fois la tondeuse n arrêtée
+        return programs.stream().map(program -> program.runOn(lawn)).toList();
     }
 }
