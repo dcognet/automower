@@ -101,12 +101,41 @@ class MowingPlanFileMapperTest {
         assertThat(exception.getLineNumber()).hasValue(2);
     }
 
-    @Test
-    void shouldRejectInstructionLine_whenSequenceIsEmpty() {
-        BusinessValidationException exception = reject(List.of("5 5", "1 2 N", ""));
+    @ParameterizedTest
+    @MethodSource("filesWithEmptyLine")
+    void shouldRejectEmptyLine_whenAnyLineIsEmpty(List<String> lines, int expectedLine) {
+        BusinessValidationException exception = reject(lines);
 
-        assertThat(exception.getCode()).isEqualTo(BusinessErrorCode.EMPTY_INSTRUCTIONS);
-        assertThat(exception.getLineNumber()).hasValue(3);
+        assertThat(exception.getCode()).isEqualTo(BusinessErrorCode.EMPTY_LINE);
+        assertThat(exception).hasMessage("empty line");
+        assertThat(exception.getLineNumber()).hasValue(expectedLine);
+    }
+
+    @ParameterizedTest
+    @MethodSource("filesWithIsolatedCarriageReturn")
+    void shouldRejectLineAsInvalidCharacter_whenLineContainsIsolatedCarriageReturn(List<String> lines, int expectedLine) {
+        BusinessValidationException exception = reject(lines);
+
+        assertThat(exception.getCode()).isEqualTo(BusinessErrorCode.INVALID_CHARACTER);
+        assertThat(exception).hasMessage("invalid character '\r'");
+        assertThat(exception.getLineNumber()).hasValue(expectedLine);
+    }
+
+    @Test
+    void shouldRejectFirstLine_whenFileStartsWithByteOrderMark() {
+        BusinessValidationException exception = reject(List.of("\uFEFF5 5", "1 2 N", "F"));
+
+        assertThat(exception.getCode()).isEqualTo(BusinessErrorCode.UNEXPECTED_BYTE_ORDER_MARK);
+        assertThat(exception).hasMessage("unexpected byte order mark");
+        assertThat(exception.getLineNumber()).hasValue(1);
+    }
+
+    @Test
+    void shouldRejectFirstLine_whenFileIsOnlyByteOrderMark() {
+        BusinessValidationException exception = reject(List.of("\uFEFF"));
+
+        assertThat(exception.getCode()).isEqualTo(BusinessErrorCode.UNEXPECTED_BYTE_ORDER_MARK);
+        assertThat(exception.getLineNumber()).hasValue(1);
     }
 
     @ParameterizedTest
@@ -144,12 +173,31 @@ class MowingPlanFileMapperTest {
         );
     }
 
+    private static Stream<Arguments> filesWithEmptyLine() {
+        return Stream.of(
+                Arguments.of(List.of("", "1 2 N", "F"), 1),
+                Arguments.of(List.of("5 5", "", "1 2 N", "F"), 2),
+                Arguments.of(List.of("5 5", "1 2 N", ""), 3),
+                Arguments.of(List.of("5 5", "1 2 N", "F", ""), 4)
+        );
+    }
+
+    private static Stream<Arguments> filesWithIsolatedCarriageReturn() {
+        return Stream.of(
+                Arguments.of(List.of("5\r5", "1 2 N", "F"), 1),
+                Arguments.of(List.of("5 5", "1 2 N\r", "F"), 2),
+                Arguments.of(List.of("5 5", "1 2 N", "F\rL"), 3)
+        );
+    }
+
     private static Stream<Arguments> filesWithSeveralErrors() {
         return Stream.of(
                 Arguments.of(List.of("5 A", "1 2 X", ""), 1, BusinessErrorCode.INVALID_COORDINATE),
                 Arguments.of(List.of("5 5", "1 2 X", "LFA"), 2, BusinessErrorCode.INVALID_ORIENTATION),
                 Arguments.of(List.of("5 5", "1 2 N", "LFA", "-1 3 E"), 3, BusinessErrorCode.INVALID_INSTRUCTION),
-                Arguments.of(List.of("5 5", "1 2 N", "F", "3 3 n", "X"), 4, BusinessErrorCode.INVALID_ORIENTATION)
+                Arguments.of(List.of("5 5", "1 2 N", "F", "3 3 n", "X"), 4, BusinessErrorCode.INVALID_ORIENTATION),
+                Arguments.of(List.of("5 5", "1 2 N", "", "3 3 n", "X"), 3, BusinessErrorCode.EMPTY_LINE),
+                Arguments.of(List.of("5 5", "1 2 N", "F\r", "", "X"), 3, BusinessErrorCode.INVALID_CHARACTER)
         );
     }
 

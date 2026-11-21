@@ -3,19 +3,27 @@ package com.automower.infrastructure.cli;
 import com.automower.application.MowLawnUseCase;
 import com.automower.infrastructure.file.MowingPlanFileReader;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class MowerCliIntegrationTest {
+
+    @TempDir
+    private Path tempDir;
 
     private final ByteArrayOutputStream stdout = new ByteArrayOutputStream();
     private final MowerCli cli = newCli();
@@ -115,6 +123,72 @@ class MowerCliIntegrationTest {
 
         assertThat(exitCode).isEqualTo(1);
         assertThat(stdout.toByteArray()).isEqualTo((expectedError + "\n").getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * Entrée : exemple de référence écrit avec des fins de ligne Windows, en entier ou mélangées à des fins de ligne Unix,
+     * avec ou sans saut de ligne final
+     * Scénario : le \r qui précède chaque \n est retiré au découpage, un unique saut de ligne final n'est pas une ligne vide
+     * Résultat : stdout vaut exactement "1 3 N\n5 1 E\n", comme pour le fichier Unix, code de sortie 0
+     */
+    @ParameterizedTest
+    @MethodSource("referenceExampleWithWindowsOrMixedLineEndings")
+    void run_referenceExampleWithWindowsOrMixedLineEndings_printsSameResultAsUnixFile(String content) throws Exception {
+        int exitCode = cli.run(new String[]{generatedFile(utf8(content))});
+
+        assertThat(exitCode).isZero();
+        assertThat(stdout.toByteArray()).isEqualTo("1 3 N\n5 1 E\n".getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * Entrée : fichier dont la structure des lignes est invalide : ligne vide au milieu, second saut de ligne final,
+     * \r isolé, BOM UTF-8 en tête
+     * Scénario : le fichier est rejeté en entier, le caractère de contrôle cité dans le message est échappé
+     * Résultat : stdout vaut exactement "ERROR line <n>: <description>\n" sur une seule ligne, code de sortie 1
+     */
+    @ParameterizedTest
+    @MethodSource("filesWithInvalidLineStructure")
+    void run_invalidLineStructure_printsOnlyErrorWithLineNumber(byte[] content, String expectedError) throws Exception {
+        int exitCode = cli.run(new String[]{generatedFile(content)});
+
+        assertThat(exitCode).isEqualTo(1);
+        assertThat(stdout.toByteArray()).isEqualTo((expectedError + "\n").getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static Stream<String> referenceExampleWithWindowsOrMixedLineEndings() {
+        return Stream.of(
+                "5 5\r\n1 2 N\r\nLFLFLFLFF\r\n3 3 E\r\nFFRFFRFRRF\r\n",
+                "5 5\r\n1 2 N\nLFLFLFLFF\r\n3 3 E\nFFRFFRFRRF\n",
+                "5 5\r\n1 2 N\r\nLFLFLFLFF\r\n3 3 E\r\nFFRFFRFRRF"
+        );
+    }
+
+    private static Stream<Arguments> filesWithInvalidLineStructure() {
+        byte[] byteOrderMark = {(byte) 0xEF, (byte) 0xBB, (byte) 0xBF};
+        return Stream.of(
+                Arguments.of(utf8("5 5\n1 2 N\n\nF\n"), "ERROR line 3: empty line"),
+                Arguments.of(utf8("5 5\n1 2 N\nF\n\n"), "ERROR line 4: empty line"),
+                Arguments.of(utf8("5 5\r\n1 2 N\r\r\nF\r\n"), "ERROR line 2: invalid character '\\r'"),
+                Arguments.of(utf8("5 5\r1 2 N\nF\n"), "ERROR line 1: invalid character '\\r'"),
+                Arguments.of(concat(byteOrderMark, utf8("5 5\n1 2 N\nF\n")), "ERROR line 1: unexpected byte order mark")
+        );
+    }
+
+    private String generatedFile(byte[] content) throws IOException {
+        Path file = Files.createTempFile(tempDir, "input", ".txt");
+        Files.write(file, content);
+        return file.toString();
+    }
+
+    private static byte[] utf8(String content) {
+        return content.getBytes(StandardCharsets.UTF_8);
+    }
+
+    private static byte[] concat(byte[] first, byte[] second) {
+        byte[] result = new byte[first.length + second.length];
+        System.arraycopy(first, 0, result, 0, first.length);
+        System.arraycopy(second, 0, result, first.length, second.length);
+        return result;
     }
 
     private MowerCli newCli() {
