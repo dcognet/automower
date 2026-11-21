@@ -50,7 +50,7 @@
     </dependencies>
 
     <build>
-        <finalName>tondeuse</finalName>
+        <finalName>mower</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
