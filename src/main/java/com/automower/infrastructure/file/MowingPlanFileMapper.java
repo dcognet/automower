@@ -7,11 +7,14 @@ import com.automower.domain.MowingPlan;
 import com.automower.domain.Orientation;
 import com.automower.domain.Position;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public final class MowingPlanFileMapper {
 
     private static final String SEPARATOR = " ";
+    private static final int FIRST_MOWER_LINE = 1;
+    private static final int LINES_PER_MOWER = 2;
 
     private MowingPlanFileMapper() {
         // vide
@@ -19,8 +22,12 @@ public final class MowingPlanFileMapper {
 
     public static MowingPlan toMowingPlan(List<String> lines) {
         Lawn lawn = toLawn(lines.get(0));
-        Mower mower = toMower(lines.get(1));
-        return new MowingPlan(lawn, new MowerProgram(mower, lines.get(2)));
+        List<MowerProgram> programs = new ArrayList<>();
+        // chaque tondeuse est un couple de lignes consécutives : position, puis instructions
+        for (int i = FIRST_MOWER_LINE; i < lines.size(); i += LINES_PER_MOWER) {
+            programs.add(new MowerProgram(toMower(lines.get(i)), lines.get(i + 1)));
+        }
+        return new MowingPlan(lawn, programs);
     }
 
     private static Lawn toLawn(String line) {

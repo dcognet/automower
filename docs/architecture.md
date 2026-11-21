@@ -44,11 +44,11 @@ flowchart LR
   MowingPlanFileReader -->|"lignes"| MowingPlanFileMapper
   MowingPlanFileMapper -->|"construit"| MowingPlan
   MowLawnUseCase -->|"2. run()"| MowingPlan
-  MowLawnUseCase -->|"3. write(mower)"| MowerOutputWriter
+  MowLawnUseCase -->|"3. write(mower), une fois par tondeuse"| MowerOutputWriter
   MowerOutputWriter --> MowerFormatter
 
   MowingPlan --> Lawn
-  MowingPlan --> MowerProgram
+  MowingPlan -->|"1..n, ordre du fichier"| MowerProgram
   MowerProgram -->|"runOn(lawn)"| Mower
   Mower --> Position
   Mower --> Orientation
@@ -61,8 +61,8 @@ flowchart LR
 
 1. `MowerCli` reçoit le chemin du fichier et appelle `MowLawnUseCase.mow`.
 2. `MowingPlanFileReader` lit les octets, les décode en UTF-8, et `LineSplitter` découpe les lignes sur `\n` (un `\r` qui précède est retiré).
-3. `MowingPlanFileMapper` traduit les lignes en `MowingPlan`. C'est le seul endroit qui connaît le format texte. Les constructeurs et les `fromCode` du domaine portent la validation fonctionnelle : le plan obtenu est entièrement valide.
-4. `MowingPlan.run()` exécute la séquence. Un `F` qui ferait sortir de la pelouse est ignoré ; la simulation ne lève aucune erreur.
-5. `MowerOutputWriter` écrit `X Y O\n` en UTF-8 sur stdout, et `MowerCli` rend le code de sortie `0`.
+3. `MowingPlanFileMapper` traduit les lignes en `MowingPlan` : la pelouse, puis un `MowerProgram` par couple de lignes (position, instructions), dans l'ordre du fichier. C'est le seul endroit qui connaît le format texte. Les constructeurs et les `fromCode` du domaine portent la validation fonctionnelle : le plan obtenu est entièrement valide.
+4. `MowingPlan.run()` exécute les tondeuses l'une après l'autre : la suivante ne bouge qu'une fois la précédente arrêtée. Un `F` qui ferait sortir de la pelouse est ignoré ; la simulation ne lève aucune erreur.
+5. `MowerOutputWriter` écrit `X Y O\n` en UTF-8 sur stdout pour chaque tondeuse, dans l'ordre du fichier, et `MowerCli` rend le code de sortie `0`.
 
 Une nouvelle source d'entrée (API, Kafka) apporterait son propre adapter et son mapper vers le même `MowingPlan`, sans toucher au domaine ni au cas d'usage.

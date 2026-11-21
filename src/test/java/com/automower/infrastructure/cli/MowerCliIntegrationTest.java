@@ -32,6 +32,19 @@ class MowerCliIntegrationTest {
     }
 
     /**
+     * Entrée : exemple de référence complet (5 5 / 1 2 N / LFLFLFLFF / 3 3 E / FFRFFRFRRF)
+     * Scénario : deux tondeuses exécutées l'une après l'autre, dans l'ordre du fichier
+     * Résultat : stdout vaut exactement "1 3 N\n5 1 E\n", code de sortie 0
+     */
+    @Test
+    void run_referenceExample_printsOneLinePerMowerInFileOrder() throws Exception {
+        int exitCode = cli.run(new String[]{fixture("reference-example.txt")});
+
+        assertThat(exitCode).isZero();
+        assertThat(stdout.toByteArray()).isEqualTo("1 3 N\n5 1 E\n".getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
      * Entrée : pelouse 5 5, tondeuse 5 3 E, séquence FL
      * Scénario : le F ferait sortir la tondeuse par le bord est, il est ignoré sans erreur
      * Résultat : "5 3 N\n", code de sortie 0
