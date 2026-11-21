@@ -41,6 +41,14 @@ class MowingPlanFileMapperTest {
         );
     }
 
+    @Test
+    void shouldConvertCoordinates_whenWrittenWithNineDigits() {
+        MowingPlan plan = MowingPlanFileMapper.toMowingPlan(List.of("999999999 999999999", "999999999 0 N", "F"));
+
+        assertThat(plan.lawn()).isEqualTo(new Lawn(999999999, 999999999));
+        assertThat(plan.programs().getFirst().mower().position()).isEqualTo(new Position(999999999, 0));
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"LFA", "lf", "L F"})
     void shouldRejectInstructionLine_whenSequenceContainsUnknownInstruction(String instructions) {

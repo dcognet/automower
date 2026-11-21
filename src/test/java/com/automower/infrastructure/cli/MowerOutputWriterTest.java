@@ -41,7 +41,7 @@ class MowerOutputWriterTest {
     }
 
     @Test
-    void shouldWriteErrorWithoutLineNumber_whenErrorConcernsWholeInput() throws IOException {
+    void shouldWriteErrorWithoutLineNumber_whenErrorHasNoLine() throws IOException {
         mowerOutputWriter.writeError(new BusinessValidationException(BusinessErrorCode.INVALID_INSTRUCTION, "invalid instruction 'A'"));
 
         assertThat(stdout.toString(StandardCharsets.UTF_8)).isEqualTo("ERROR: invalid instruction 'A'\n");

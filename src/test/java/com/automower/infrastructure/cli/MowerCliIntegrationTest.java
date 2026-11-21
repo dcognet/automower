@@ -3,6 +3,8 @@ package com.automower.infrastructure.cli;
 import com.automower.application.MowLawnUseCase;
 import com.automower.infrastructure.file.MowingPlanFileReader;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -97,42 +99,22 @@ class MowerCliIntegrationTest {
     }
 
     /**
-     * Entrée : exemple de référence dont la seconde tondeuse a l'orientation X, en ligne 4
-     * Scénario : la première tondeuse est valide, mais le fichier est rejeté en entier avant toute exécution
-     * Résultat : stdout vaut exactement "ERROR line 4: invalid orientation 'X'\n", aucune position, code de sortie 1
+     * Entrée : fichier dont une ligne est non conforme, après une tondeuse valide (orientation X en ligne 4),
+     * sur la dernière ligne (instruction A en ligne 5), ou absente (ligne d'instructions attendue en ligne 3)
+     * Scénario : le fichier est rejeté en entier avant toute exécution, seule l'erreur est écrite
+     * Résultat : stdout vaut exactement "ERROR line <n>: <description>\n", aucune position, code de sortie 1
      */
-    @Test
-    void run_invalidOrientationAfterValidMower_printsOnlyErrorWithLineNumber() throws Exception {
-        int exitCode = cli.run(new String[]{fixture("invalid-orientation.txt")});
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+            "invalid-orientation.txt      | ERROR line 4: invalid orientation 'X'",
+            "invalid-instruction.txt      | ERROR line 5: invalid instruction 'A'",
+            "missing-instruction-line.txt | ERROR line 3: missing instruction line"
+    })
+    void run_malformedLine_printsOnlyErrorWithLineNumber(String fixture, String expectedError) throws Exception {
+        int exitCode = cli.run(new String[]{fixture(fixture)});
 
         assertThat(exitCode).isEqualTo(1);
-        assertThat(stdout.toByteArray()).isEqualTo("ERROR line 4: invalid orientation 'X'\n".getBytes(StandardCharsets.UTF_8));
-    }
-
-    /**
-     * Entrée : exemple de référence dont la séquence de la seconde tondeuse contient A, en ligne 5
-     * Scénario : la dernière ligne est non conforme, aucune tondeuse n'est exécutée
-     * Résultat : "ERROR line 5: invalid instruction 'A'\n", code de sortie 1
-     */
-    @Test
-    void run_invalidInstructionOnLastLine_printsOnlyErrorWithLineNumber() throws Exception {
-        int exitCode = cli.run(new String[]{fixture("invalid-instruction.txt")});
-
-        assertThat(exitCode).isEqualTo(1);
-        assertThat(stdout.toString(StandardCharsets.UTF_8)).isEqualTo("ERROR line 5: invalid instruction 'A'\n");
-    }
-
-    /**
-     * Entrée : fichier de 2 lignes, 5 5 / 1 2 N
-     * Scénario : la tondeuse n'a pas de ligne d'instructions, l'erreur porte sur la ligne attendue
-     * Résultat : "ERROR line 3: missing instruction line\n", code de sortie 1
-     */
-    @Test
-    void run_positionWithoutInstructionLine_reportsExpectedLine() throws Exception {
-        int exitCode = cli.run(new String[]{fixture("missing-instruction-line.txt")});
-
-        assertThat(exitCode).isEqualTo(1);
-        assertThat(stdout.toString(StandardCharsets.UTF_8)).isEqualTo("ERROR line 3: missing instruction line\n");
+        assertThat(stdout.toByteArray()).isEqualTo((expectedError + "\n").getBytes(StandardCharsets.UTF_8));
     }
 
     private MowerCli newCli() {

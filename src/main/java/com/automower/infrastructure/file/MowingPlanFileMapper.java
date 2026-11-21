@@ -32,19 +32,22 @@ public final class MowingPlanFileMapper {
 
     public static MowingPlan toMowingPlan(List<String> lines) {
         Lawn lawn = mapLine(lines, LAWN_LINE_INDEX, MowingPlanFileMapper::toLawn);
-        if (lines.size() <= FIRST_MOWER_LINE_INDEX) {
-            throw new BusinessValidationException(BusinessErrorCode.MISSING_MOWER, "missing mower position line").atLine(lineNumber(FIRST_MOWER_LINE_INDEX));
-        }
+        requireLine(lines, FIRST_MOWER_LINE_INDEX, BusinessErrorCode.MISSING_MOWER, "missing mower position line");
         List<MowerProgram> programs = new ArrayList<>();
         // chaque tondeuse est un couple de lignes consécutives : position, puis instructions
         for (int i = FIRST_MOWER_LINE_INDEX; i < lines.size(); i += LINES_PER_MOWER) {
             Mower mower = mapLine(lines, i, MowingPlanFileMapper::toMower);
-            if (i + 1 >= lines.size()) {
-                throw new BusinessValidationException(BusinessErrorCode.MISSING_INSTRUCTIONS, "missing instruction line").atLine(lineNumber(i + 1));
-            }
+            requireLine(lines, i + 1, BusinessErrorCode.MISSING_INSTRUCTIONS, "missing instruction line");
             programs.add(mapLine(lines, i + 1, instructions -> new MowerProgram(mower, instructions)));
         }
         return new MowingPlan(lawn, programs);
+    }
+
+    private static void requireLine(List<String> lines, int index, BusinessErrorCode code, String detail) {
+        // une ligne absente est signalée sur la ligne attendue
+        if (index >= lines.size()) {
+            throw new BusinessValidationException(code, detail).atLine(lineNumber(index));
+        }
     }
 
     private static <T> T mapLine(List<String> lines, int index, Function<String, T> mapper) {
