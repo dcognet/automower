@@ -155,6 +155,31 @@ class MowerCliIntegrationTest {
         assertThat(stdout.toByteArray()).isEqualTo((expectedError + "\n").getBytes(StandardCharsets.UTF_8));
     }
 
+    /**
+     * Entrée : fichier bien formé qui décrit une pelouse impossible ou des tondeuses mal placées : pelouse 0 0,
+     * dimension au-delà de 40075016, coordonnée de 20 chiffres, départ hors pelouse, deux tondeuses sur la même case
+     * Scénario : le fichier est rejeté en entier avant toute exécution, sans exception technique de dépassement
+     * Résultat : stdout vaut exactement "ERROR line <n>: <description>\n", code de sortie 1
+     */
+    @ParameterizedTest
+    @MethodSource("inconsistentPlans")
+    void run_inconsistentPlan_printsOnlyErrorWithLineNumber(String content, String expectedError) throws Exception {
+        int exitCode = cli.run(new String[]{generatedFile(utf8(content))});
+
+        assertThat(exitCode).isEqualTo(1);
+        assertThat(stdout.toString(StandardCharsets.UTF_8)).isEqualTo(expectedError + "\n");
+    }
+
+    private static Stream<Arguments> inconsistentPlans() {
+        return Stream.of(
+                Arguments.of("0 0\n0 0 N\nF\n", "ERROR line 1: lawn 0 0 must contain more than one cell"),
+                Arguments.of("40075017 5\n1 2 N\nF\n", "ERROR line 1: lawn dimension 40075017 must be between 0 and 40075016"),
+                Arguments.of("99999999999999999999 5\n1 2 N\nF\n", "ERROR line 1: invalid coordinate '99999999999999999999'"),
+                Arguments.of("5 5\n6 2 N\nF\n", "ERROR line 2: starting position 6 2 is outside the lawn"),
+                Arguments.of("5 5\n1 2 N\nF\n1 2 E\nF\n", "ERROR line 4: starting position 1 2 is already taken")
+        );
+    }
+
     private static Stream<String> referenceExampleWithWindowsOrMixedLineEndings() {
         return Stream.of(
                 "5 5\r\n1 2 N\r\nLFLFLFLFF\r\n3 3 E\r\nFFRFFRFRRF\r\n",

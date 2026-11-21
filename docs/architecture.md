@@ -33,6 +33,7 @@ flowchart LR
     OccupancyGrid
     Lawn
     MowerProgram
+    StartingPositions
     Mower
     Position
     Orientation
@@ -46,6 +47,8 @@ flowchart LR
   MowingPlanFileReader -->|"bytes UTF-8"| LineSplitter
   MowingPlanFileReader -->|"lignes"| MowingPlanFileMapper
   MowingPlanFileMapper -->|"construit"| MowingPlan
+  MowingPlanFileMapper -->|"add(départ), ligne par ligne"| StartingPositions
+  StartingPositions --> Lawn
   MowLawnUseCase -->|"2. run()"| MowingPlan
   MowLawnUseCase -->|"3. write(mower), une fois par tondeuse"| MowerOutputWriter
   MowerOutputWriter --> MowerFormatter
@@ -64,6 +67,8 @@ flowchart LR
   Orientation -.->|"code inconnu"| BusinessValidationException
   Instruction -.->|"code inconnu"| BusinessValidationException
   MowerProgram -.->|"séquence vide"| BusinessValidationException
+  Lawn -.->|"dimension hors bornes, pelouse 0 0"| BusinessValidationException
+  StartingPositions -.->|"départ hors pelouse ou en doublon"| BusinessValidationException
   MowingPlanFileMapper -.->|"structure et format de ligne, atLine(n)"| BusinessValidationException
   BusinessValidationException --> BusinessErrorCode
 ```
@@ -72,7 +77,7 @@ flowchart LR
 
 1. `MowerCli` reçoit le chemin du fichier et appelle `MowLawnUseCase.mow`.
 2. `MowingPlanFileReader` lit les octets, les décode en UTF-8, et `LineSplitter` découpe les lignes sur `\n` (un `\r` qui précède est retiré, un `\r` isolé reste dans la ligne ; un unique saut de ligne final ne produit pas de ligne vide, un second en produit une).
-3. `MowingPlanFileMapper` traduit les lignes en `MowingPlan` : la pelouse, puis un `MowerProgram` par couple de lignes (position, instructions), dans l'ordre du fichier. C'est le seul endroit qui connaît le format texte. Avant d'analyser une ligne, il en vérifie la structure : un BOM (U+FEFF) en tête de la ligne 1, une ligne vide ou un `\r` restant sont rejetés sur cette ligne. Une ligne d'instructions vide est donc signalée comme ligne vide (RM-21) : le refus d'une séquence vide par `MowerProgram` (RM-20) reste un invariant du domaine. Les lignes de pelouse et de position sont reconnues par une regex ancrée (valeurs séparées par une seule espace U+0020, coordonnées `0|[1-9][0-9]{0,8}` en chiffres ASCII, vérifiées avant toute conversion en `int`) ; l'orientation et la ligne d'instructions sont validées par le domaine (`Orientation.fromCode`, `MowerProgram`). Les constructeurs et les `fromCode` du domaine portent la validation fonctionnelle : le plan obtenu est entièrement valide. L'analyse fait un seul passage dans l'ordre des lignes et s'arrête à la première erreur ; une `BusinessValidationException` levée pendant l'analyse d'une ligne y reçoit le numéro de cette ligne (`atLine`). Une ligne attendue mais absente (tondeuse, instructions) est signalée avec le numéro de la ligne attendue.
+3. `MowingPlanFileMapper` traduit les lignes en `MowingPlan` : la pelouse, puis un `MowerProgram` par couple de lignes (position, instructions), dans l'ordre du fichier. C'est le seul endroit qui connaît le format texte. Avant d'analyser une ligne, il en vérifie la structure : un BOM (U+FEFF) en tête de la ligne 1, une ligne vide ou un `\r` restant sont rejetés sur cette ligne. Une ligne d'instructions vide est donc signalée comme ligne vide (RM-21) : le refus d'une séquence vide par `MowerProgram` (RM-20) reste un invariant du domaine. Les lignes de pelouse et de position sont reconnues par une regex ancrée (valeurs séparées par une seule espace U+0020, coordonnées `0|[1-9][0-9]{0,8}` en chiffres ASCII, vérifiées avant toute conversion en `int`) ; l'orientation et la ligne d'instructions sont validées par le domaine (`Orientation.fromCode`, `MowerProgram`). Le constructeur de `Lawn` borne chaque dimension à `0..40075016` et refuse la pelouse `0 0`. Chaque position de départ est confiée, au moment où sa ligne est analysée, à `StartingPositions` (un `HashSet<Position>`, O(1) moyen par tondeuse), qui la rejette si elle est hors pelouse ou déjà prise : l'erreur garde ainsi le numéro de sa ligne et l'ordre des lignes. Les constructeurs et les `fromCode` du domaine portent la validation fonctionnelle : le plan obtenu est entièrement valide. L'analyse fait un seul passage dans l'ordre des lignes et s'arrête à la première erreur ; une `BusinessValidationException` levée pendant l'analyse d'une ligne y reçoit le numéro de cette ligne (`atLine`). Une ligne attendue mais absente (tondeuse, instructions) est signalée avec le numéro de la ligne attendue.
 4. `MowingPlan.run()` crée une `OccupancyGrid` (grille creuse : un `HashSet<Position>`, la pelouse n'est jamais matérialisée) avec toutes les cases de départ, puis exécute les tondeuses l'une après l'autre : la suivante ne bouge qu'une fois la précédente arrêtée. Au démarrage, une tondeuse libère sa case de départ ; à l'arrêt, elle occupe sa case finale. Un `F` vers une case hors pelouse ou occupée est ignoré ; la simulation ne lève aucune erreur.
 5. `MowerOutputWriter` écrit `X Y O\n` en UTF-8 sur stdout pour chaque tondeuse, dans l'ordre du fichier, et `MowerCli` rend le code de sortie `0`.
 
