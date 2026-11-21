@@ -99,7 +99,17 @@
                         <param>HTML</param>
                     </outputFormats>
                     <timestampedReports>false</timestampedReports>
+                    <mutationThreshold>100</mutationThreshold>
                 </configuration>
+                <executions>
+                    <execution>
+                        <id>mutation-coverage</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>mutationCoverage</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
