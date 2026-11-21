@@ -16,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class MowerCliIntegrationTest {
 
     private final ByteArrayOutputStream stdout = new ByteArrayOutputStream();
-    private final MowerCli cli = new MowerCli(new MowLawnUseCase(new MowingPlanFileReader(), new MowerOutputWriter(stdout)));
+    private final MowerCli cli = newCli();
 
     /**
      * Entrée : exemple de référence complet (5 5 / 1 2 N / LFLFLFLFF / 3 3 E / FFRFFRFRRF)
@@ -94,6 +94,50 @@ class MowerCliIntegrationTest {
 
         assertThat(exitCode).isZero();
         assertThat(stdout.toString(StandardCharsets.UTF_8)).isEqualTo("0 2 N\n0 3 S\n40075016 40075016 N\n");
+    }
+
+    /**
+     * Entrée : exemple de référence dont la seconde tondeuse a l'orientation X, en ligne 4
+     * Scénario : la première tondeuse est valide, mais le fichier est rejeté en entier avant toute exécution
+     * Résultat : stdout vaut exactement "ERROR line 4: invalid orientation 'X'\n", aucune position, code de sortie 1
+     */
+    @Test
+    void run_invalidOrientationAfterValidMower_printsOnlyErrorWithLineNumber() throws Exception {
+        int exitCode = cli.run(new String[]{fixture("invalid-orientation.txt")});
+
+        assertThat(exitCode).isEqualTo(1);
+        assertThat(stdout.toByteArray()).isEqualTo("ERROR line 4: invalid orientation 'X'\n".getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * Entrée : exemple de référence dont la séquence de la seconde tondeuse contient A, en ligne 5
+     * Scénario : la dernière ligne est non conforme, aucune tondeuse n'est exécutée
+     * Résultat : "ERROR line 5: invalid instruction 'A'\n", code de sortie 1
+     */
+    @Test
+    void run_invalidInstructionOnLastLine_printsOnlyErrorWithLineNumber() throws Exception {
+        int exitCode = cli.run(new String[]{fixture("invalid-instruction.txt")});
+
+        assertThat(exitCode).isEqualTo(1);
+        assertThat(stdout.toString(StandardCharsets.UTF_8)).isEqualTo("ERROR line 5: invalid instruction 'A'\n");
+    }
+
+    /**
+     * Entrée : fichier de 2 lignes, 5 5 / 1 2 N
+     * Scénario : la tondeuse n'a pas de ligne d'instructions, l'erreur porte sur la ligne attendue
+     * Résultat : "ERROR line 3: missing instruction line\n", code de sortie 1
+     */
+    @Test
+    void run_positionWithoutInstructionLine_reportsExpectedLine() throws Exception {
+        int exitCode = cli.run(new String[]{fixture("missing-instruction-line.txt")});
+
+        assertThat(exitCode).isEqualTo(1);
+        assertThat(stdout.toString(StandardCharsets.UTF_8)).isEqualTo("ERROR line 3: missing instruction line\n");
+    }
+
+    private MowerCli newCli() {
+        MowerOutputWriter mowerOutputWriter = new MowerOutputWriter(stdout);
+        return new MowerCli(new MowLawnUseCase(new MowingPlanFileReader(), mowerOutputWriter), mowerOutputWriter);
     }
 
     private static String fixture(String name) throws URISyntaxException, IOException {

@@ -1,6 +1,7 @@
 package com.automower.infrastructure.cli;
 
 import com.automower.domain.Mower;
+import com.automower.domain.exception.BusinessValidationException;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -19,8 +20,16 @@ public class MowerOutputWriter {
     }
 
     public void write(Mower mower) throws IOException {
+        writeLine(MowerFormatter.format(mower));
+    }
+
+    public void writeError(BusinessValidationException exception) throws IOException {
+        writeLine(ErrorFormatter.format(exception));
+    }
+
+    private void writeLine(String line) throws IOException {
         Writer writer = new OutputStreamWriter(stdout, StandardCharsets.UTF_8);
-        writer.write(MowerFormatter.format(mower) + LINE_END);
+        writer.write(line + LINE_END);
         writer.flush();
     }
 }
