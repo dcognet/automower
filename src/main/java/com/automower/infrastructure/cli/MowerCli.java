@@ -12,7 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.List;
 
-public class TondeuseCli {
+public class MowerCli {
 
     private static final int EXIT_SUCCESS = 0;
     private static final String LINE_END = "\n";
@@ -20,13 +20,13 @@ public class TondeuseCli {
     private final InputFileReader inputFileReader;
     private final MowLawnUseCase mowLawnUseCase;
 
-    public TondeuseCli(InputFileReader inputFileReader, MowLawnUseCase mowLawnUseCase) {
+    public MowerCli(InputFileReader inputFileReader, MowLawnUseCase mowLawnUseCase) {
         this.inputFileReader = inputFileReader;
         this.mowLawnUseCase = mowLawnUseCase;
     }
 
     public static void main(String[] args) throws IOException {
-        TondeuseCli cli = new TondeuseCli(new InputFileReader(), new MowLawnUseCase());
+        MowerCli cli = new MowerCli(new InputFileReader(), new MowLawnUseCase());
         System.exit(cli.run(args, System.out));
     }
 

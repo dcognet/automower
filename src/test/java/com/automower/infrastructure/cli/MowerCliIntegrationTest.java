@@ -13,9 +13,9 @@ import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class TondeuseCliIntegrationTest {
+class MowerCliIntegrationTest {
 
-    private final TondeuseCli cli = new TondeuseCli(new InputFileReader(), new MowLawnUseCase());
+    private final MowerCli cli = new MowerCli(new InputFileReader(), new MowLawnUseCase());
 
     /**
      * Entrée : première tondeuse de l'exemple de référence (5 5 / 1 2 N / LFLFLFLFF)
@@ -63,7 +63,7 @@ class TondeuseCliIntegrationTest {
     }
 
     private static String fixture(String name) throws URISyntaxException, IOException {
-        URL resource = TondeuseCliIntegrationTest.class.getResource("/inputs/" + name);
+        URL resource = MowerCliIntegrationTest.class.getResource("/inputs/" + name);
         if (resource == null) {
             throw new IOException("Missing fixture " + name);
         }

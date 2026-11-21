@@ -69,7 +69,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>com.automower.infrastructure.cli.TondeuseCli</mainClass>
+                            <mainClass>com.automower.infrastructure.cli.MowerCli</mainClass>
                         </manifest>
                     </archive>
                 </configuration>
