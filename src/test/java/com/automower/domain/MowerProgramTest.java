@@ -6,7 +6,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
 class MowerProgramTest {
@@ -16,17 +20,17 @@ class MowerProgramTest {
         MowerProgram forwardThenRight = new MowerProgram(new Mower(new Position(0, 0), Orientation.NORTH), "FR");
         MowerProgram rightThenForward = new MowerProgram(new Mower(new Position(0, 0), Orientation.NORTH), "RF");
 
-        Lawn lawn = new Lawn(5, 5);
+        OccupancyGrid grid = emptyGrid(new Lawn(5, 5));
 
-        assertThat(forwardThenRight.runOn(lawn)).isEqualTo(new Mower(new Position(0, 1), Orientation.EAST));
-        assertThat(rightThenForward.runOn(lawn)).isEqualTo(new Mower(new Position(1, 0), Orientation.EAST));
+        assertThat(forwardThenRight.runOn(grid)).isEqualTo(new Mower(new Position(0, 1), Orientation.EAST));
+        assertThat(rightThenForward.runOn(grid)).isEqualTo(new Mower(new Position(1, 0), Orientation.EAST));
     }
 
     @Test
     void shouldContinueWithNextInstruction_whenForwardIsBlockedByEdge() {
         MowerProgram program = new MowerProgram(new Mower(new Position(5, 3), Orientation.EAST), "FL");
 
-        assertThat(program.runOn(new Lawn(5, 5))).isEqualTo(new Mower(new Position(5, 3), Orientation.NORTH));
+        assertThat(program.runOn(emptyGrid(new Lawn(5, 5)))).isEqualTo(new Mower(new Position(5, 3), Orientation.NORTH));
     }
 
     @ParameterizedTest
@@ -41,7 +45,7 @@ class MowerProgramTest {
         MowerProgram program = new MowerProgram(new Mower(new Position(0, 0), Orientation.fromCode(orientation)), instructions);
 
         Mower expected = new Mower(new Position(expectedX, expectedY), Orientation.fromCode(expectedOrientation));
-        assertThat(program.runOn(new Lawn(5, 3))).isEqualTo(expected);
+        assertThat(program.runOn(emptyGrid(new Lawn(5, 3)))).isEqualTo(expected);
     }
 
     @Test
@@ -52,5 +56,9 @@ class MowerProgramTest {
 
         assertThat(exception.getCode()).isEqualTo(BusinessErrorCode.INVALID_INSTRUCTION);
         assertThat(exception).hasMessage("invalid instruction 'X'");
+    }
+
+    private static OccupancyGrid emptyGrid(Lawn lawn) {
+        return new OccupancyGrid(lawn, List.of());
     }
 }

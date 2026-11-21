@@ -29,6 +29,7 @@ flowchart LR
   end
   subgraph domain[domain]
     MowingPlan
+    OccupancyGrid
     Lawn
     MowerProgram
     Mower
@@ -48,8 +49,11 @@ flowchart LR
   MowerOutputWriter --> MowerFormatter
 
   MowingPlan --> Lawn
+  MowingPlan -->|"crée avec les cases de départ"| OccupancyGrid
+  OccupancyGrid --> Lawn
   MowingPlan -->|"1..n, ordre du fichier"| MowerProgram
-  MowerProgram -->|"runOn(lawn)"| Mower
+  MowerProgram -->|"runOn(grid)"| Mower
+  Mower -->|"isFree(cible)"| OccupancyGrid
   Mower --> Position
   Mower --> Orientation
   MowerProgram -.->|"fromCode à la construction"| Instruction
@@ -62,7 +66,7 @@ flowchart LR
 1. `MowerCli` reçoit le chemin du fichier et appelle `MowLawnUseCase.mow`.
 2. `MowingPlanFileReader` lit les octets, les décode en UTF-8, et `LineSplitter` découpe les lignes sur `\n` (un `\r` qui précède est retiré).
 3. `MowingPlanFileMapper` traduit les lignes en `MowingPlan` : la pelouse, puis un `MowerProgram` par couple de lignes (position, instructions), dans l'ordre du fichier. C'est le seul endroit qui connaît le format texte. Les constructeurs et les `fromCode` du domaine portent la validation fonctionnelle : le plan obtenu est entièrement valide.
-4. `MowingPlan.run()` exécute les tondeuses l'une après l'autre : la suivante ne bouge qu'une fois la précédente arrêtée. Un `F` qui ferait sortir de la pelouse est ignoré ; la simulation ne lève aucune erreur.
+4. `MowingPlan.run()` crée une `OccupancyGrid` (grille creuse : un `HashSet<Position>`, la pelouse n'est jamais matérialisée) avec toutes les cases de départ, puis exécute les tondeuses l'une après l'autre : la suivante ne bouge qu'une fois la précédente arrêtée. Au démarrage, une tondeuse libère sa case de départ ; à l'arrêt, elle occupe sa case finale. Un `F` vers une case hors pelouse ou occupée est ignoré ; la simulation ne lève aucune erreur.
 5. `MowerOutputWriter` écrit `X Y O\n` en UTF-8 sur stdout pour chaque tondeuse, dans l'ordre du fichier, et `MowerCli` rend le code de sortie `0`.
 
 Une nouvelle source d'entrée (API, Kafka) apporterait son propre adapter et son mapper vers le même `MowingPlan`, sans toucher au domaine ni au cas d'usage.

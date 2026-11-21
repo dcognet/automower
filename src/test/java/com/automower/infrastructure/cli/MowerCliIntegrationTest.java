@@ -57,6 +57,45 @@ class MowerCliIntegrationTest {
         assertThat(stdout.toString(StandardCharsets.UTF_8)).isEqualTo("5 0 N\n");
     }
 
+    /**
+     * Entrée : pelouse 5 5, tondeuse 1 en 1 1 N avec L, tondeuse 2 en 0 1 E avec FL
+     * Scénario : la tondeuse 1 s'arrête en 1 1, sa case bloque le F de la tondeuse 2 comme un bord
+     * Résultat : "1 1 W\n0 1 N\n", code de sortie 0
+     */
+    @Test
+    void run_forwardOntoStoppedMower_ignoresInstructionAndContinues() throws Exception {
+        int exitCode = cli.run(new String[]{fixture("blocked-by-stopped-mower.txt")});
+
+        assertThat(exitCode).isZero();
+        assertThat(stdout.toString(StandardCharsets.UTF_8)).isEqualTo("1 1 W\n0 1 N\n");
+    }
+
+    /**
+     * Entrée : pelouse 5 5, tondeuse 1 en 0 0 E avec FF, tondeuse 2 en 2 0 N avec L
+     * Scénario : la tondeuse 2 n'a pas encore démarré, sa case de départ bloque le second F de la tondeuse 1
+     * Résultat : "1 0 E\n2 0 W\n", code de sortie 0
+     */
+    @Test
+    void run_forwardOntoMowerNotStartedYet_ignoresInstructionAndContinues() throws Exception {
+        int exitCode = cli.run(new String[]{fixture("blocked-by-waiting-mower.txt")});
+
+        assertThat(exitCode).isZero();
+        assertThat(stdout.toString(StandardCharsets.UTF_8)).isEqualTo("1 0 E\n2 0 W\n");
+    }
+
+    /**
+     * Entrée : pelouse aux bornes maximales 40075016 40075016, trois tondeuses dont une au coin supérieur droit
+     * Scénario : la tondeuse 2 est bloquée par la tondeuse 1, la tondeuse 3 par les bords maximaux ; seules les cases occupées sont suivies
+     * Résultat : positions finales attendues, code de sortie 0, sans erreur mémoire
+     */
+    @Test
+    void run_lawnAtMaximumBounds_completesWithoutMaterializingLawn() throws Exception {
+        int exitCode = cli.run(new String[]{fixture("maximum-bounds-lawn.txt")});
+
+        assertThat(exitCode).isZero();
+        assertThat(stdout.toString(StandardCharsets.UTF_8)).isEqualTo("0 2 N\n0 3 S\n40075016 40075016 N\n");
+    }
+
     private static String fixture(String name) throws URISyntaxException, IOException {
         URL resource = MowerCliIntegrationTest.class.getResource("/inputs/" + name);
         if (resource == null) {
