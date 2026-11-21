@@ -9,7 +9,7 @@ public record Position(int x, int y) {
         return new Position(x + orientation.dx(), y + orientation.dy());
     }
 
-    // le hash par défaut d'un record (31 * x + y) fait collisionner les cases d'une grille dense : jusqu'à 10⁶ tondeuses
+    // le hash par défaut d'un record (31 * x + y) fait collisionner les cases d'une grille dense de centaines de milliers de tondeuses
     @Override
     public int hashCode() {
         return x * HASH_MULTIPLIER ^ y;

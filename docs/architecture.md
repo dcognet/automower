@@ -84,6 +84,6 @@ flowchart LR
 
 En cas d'erreur, `MowerCli` est le seul à traduire la `BusinessValidationException` : `ErrorFormatter` produit `ERROR line <n>: <description>` (ou `ERROR: <description>` sans numéro de ligne), en échappant les caractères invisibles cités (`\\`, `\t`, `\r`, `\n`, `\uXXXX` pour les autres caractères de contrôle, de format et séparateurs de ligne) pour que le message tienne sur une ligne lisible, écrit par `MowerOutputWriter`, et le code de sortie est `1`. Comme le plan est validé en entier avant la simulation, aucune position finale n'a été écrite.
 
-Volumétrie (US-007) : un fichier de près de 10 Mo, avec une tondeuse et ~10⁷ instructions ou ~10⁶ tondeuses, est traité de l'ordre de la seconde avec la heap par défaut ; `MowerCliLoadIntegrationTest` le vérifie sur des fichiers générés, et il est exclu du mutation testing (il ne tue aucun mutant de plus).
+Volumétrie (US-007) : un fichier de près de 10 Mo, avec une tondeuse et ~10⁷ instructions ou de l'ordre de 10⁶ tondeuses (~7.10⁵ dans le test, proche du maximum que permettent 10 Mo), est traité de l'ordre de la seconde avec la heap par défaut ; `MowerCliLoadIntegrationTest` le vérifie sur des fichiers générés, et il est exclu des tests lancés par PIT (pas des classes mutées : `targetClasses` et le seuil de 100 % sont inchangés), car il ne tue aucun mutant de plus.
 
 Une nouvelle source d'entrée (API, Kafka) apporterait son propre adapter et son mapper vers le même `MowingPlan`, sans toucher au domaine ni au cas d'usage.

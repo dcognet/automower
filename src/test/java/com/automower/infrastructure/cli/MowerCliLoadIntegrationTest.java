@@ -17,7 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class MowerCliLoadIntegrationTest {
 
     private static final int MAX_FILE_SIZE = 10_000_000;
-    // « de l'ordre de la seconde » : marge pour une machine de CI chargée, mesuré autour de 0,2 s et 0,9 s en local
+    // « de l'ordre de la seconde » : marge pour une CI chargée ; mesuré en local à 0,2 s et 1,1 s, y compris sous l'agent JaCoCo
     private static final Duration MAX_DURATION = Duration.ofSeconds(3);
     private static final String CYCLE = "FFRFFL";
     private static final int ROW_WIDTH = 1000;
