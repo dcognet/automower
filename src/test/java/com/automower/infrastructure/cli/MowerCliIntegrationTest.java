@@ -15,7 +15,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class MowerCliIntegrationTest {
 
-    private final MowerCli cli = new MowerCli(new InputFileReader(), new MowLawnUseCase());
+    private final ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+    private final MowerCli cli = new MowerCli(new MowLawnUseCase(new InputFileReader(), new MowerOutputWriter(stdout)));
 
     /**
      * Entrée : première tondeuse de l'exemple de référence (5 5 / 1 2 N / LFLFLFLFF)
@@ -24,9 +25,7 @@ class MowerCliIntegrationTest {
      */
     @Test
     void run_referenceFirstMower_printsFinalPosition() throws Exception {
-        ByteArrayOutputStream stdout = new ByteArrayOutputStream();
-
-        int exitCode = cli.run(new String[]{fixture("reference-first-mower.txt")}, stdout);
+        int exitCode = cli.run(new String[]{fixture("reference-first-mower.txt")});
 
         assertThat(exitCode).isZero();
         assertThat(stdout.toByteArray()).isEqualTo("1 3 N\n".getBytes(StandardCharsets.UTF_8));
@@ -39,9 +38,7 @@ class MowerCliIntegrationTest {
      */
     @Test
     void run_forwardBlockedByEdge_ignoresInstructionAndContinues() throws Exception {
-        ByteArrayOutputStream stdout = new ByteArrayOutputStream();
-
-        int exitCode = cli.run(new String[]{fixture("blocked-by-edge.txt")}, stdout);
+        int exitCode = cli.run(new String[]{fixture("blocked-by-edge.txt")});
 
         assertThat(exitCode).isZero();
         assertThat(stdout.toString(StandardCharsets.UTF_8)).isEqualTo("5 3 N\n");
@@ -54,9 +51,7 @@ class MowerCliIntegrationTest {
      */
     @Test
     void run_rectangularLawn_usesIndependentBounds() throws Exception {
-        ByteArrayOutputStream stdout = new ByteArrayOutputStream();
-
-        int exitCode = cli.run(new String[]{fixture("rectangular-lawn.txt")}, stdout);
+        int exitCode = cli.run(new String[]{fixture("rectangular-lawn.txt")});
 
         assertThat(exitCode).isZero();
         assertThat(stdout.toString(StandardCharsets.UTF_8)).isEqualTo("5 0 N\n");
