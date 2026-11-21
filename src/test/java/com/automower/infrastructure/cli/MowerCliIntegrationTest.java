@@ -1,7 +1,7 @@
 package com.automower.infrastructure.cli;
 
 import com.automower.application.MowLawnUseCase;
-import com.automower.infrastructure.file.InputFileReader;
+import com.automower.infrastructure.file.MowingPlanFileReader;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayOutputStream;
@@ -16,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class MowerCliIntegrationTest {
 
     private final ByteArrayOutputStream stdout = new ByteArrayOutputStream();
-    private final MowerCli cli = new MowerCli(new MowLawnUseCase(new InputFileReader(), new MowerOutputWriter(stdout)));
+    private final MowerCli cli = new MowerCli(new MowLawnUseCase(new MowingPlanFileReader(), new MowerOutputWriter(stdout)));
 
     /**
      * Entrée : première tondeuse de l'exemple de référence (5 5 / 1 2 N / LFLFLFLFF)
