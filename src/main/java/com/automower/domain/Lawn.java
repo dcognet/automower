@@ -22,10 +22,7 @@ public record Lawn(int maxX, int maxY) {
 
     private static void requireValidDimension(int dimension) {
         if (dimension < 0 || dimension > MAX_DIMENSION) {
-            throw new BusinessValidationException(
-                    BusinessErrorCode.INVALID_LAWN_DIMENSION,
-                    "lawn dimension " + dimension + " must be between 0 and " + MAX_DIMENSION
-            );
+            throw new BusinessValidationException(BusinessErrorCode.INVALID_LAWN_DIMENSION, "lawn dimension " + dimension + " must be between 0 and " + MAX_DIMENSION);
         }
     }
 }
