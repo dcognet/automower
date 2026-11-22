@@ -1,6 +1,11 @@
 package com.automower.domain.exception;
 
 public enum BusinessErrorCode {
+    FILE_NOT_FOUND("File not found"),
+    FILE_NOT_READABLE("File not readable"),
+    FILE_TOO_LARGE("File too large"),
+    EMPTY_FILE("Empty file"),
+    INVALID_ENCODING("Invalid encoding"),
     EMPTY_LINE("Empty line"),
     INVALID_CHARACTER("Invalid character"),
     UNEXPECTED_BYTE_ORDER_MARK("Unexpected byte order mark"),

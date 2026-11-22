@@ -17,6 +17,10 @@ public final class ErrorFormatter {
         return PREFIX + location + ": " + escapeInvisibleCharacters(exception.getMessage());
     }
 
+    public static String format(String description) {
+        return PREFIX + ": " + escapeInvisibleCharacters(description);
+    }
+
     // un caractère invisible cité dans le message est échappé pour garder une seule ligne lisible
     private static String escapeInvisibleCharacters(String message) {
         return message.chars()

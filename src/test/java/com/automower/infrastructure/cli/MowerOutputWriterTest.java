@@ -46,4 +46,11 @@ class MowerOutputWriterTest {
 
         assertThat(stdout.toString(StandardCharsets.UTF_8)).isEqualTo("ERROR: invalid instruction 'A'\n");
     }
+
+    @Test
+    void shouldWriteEscapedErrorWithoutLineNumber_whenWritingDescriptionOnly() throws IOException {
+        mowerOutputWriter.writeError("file not found: a\tb.txt");
+
+        assertThat(stdout.toString(StandardCharsets.UTF_8)).isEqualTo("ERROR: file not found: a\\tb.txt\n");
+    }
 }

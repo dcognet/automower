@@ -27,6 +27,10 @@ public class MowerOutputWriter {
         writeLine(ErrorFormatter.format(exception));
     }
 
+    public void writeError(String description) throws IOException {
+        writeLine(ErrorFormatter.format(description));
+    }
+
     private void writeLine(String line) throws IOException {
         Writer writer = new OutputStreamWriter(stdout, StandardCharsets.UTF_8);
         writer.write(line + LINE_END);
