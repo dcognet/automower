@@ -21,6 +21,7 @@ class MowerOutputWriterTest {
     @Test
     void shouldWriteXYOrientationTerminatedByLineFeed_whenWritingMower() throws IOException {
         mowerOutputWriter.write(new Mower(new Position(12, 3), Orientation.WEST));
+        mowerOutputWriter.flush();
 
         assertThat(stdout.toByteArray()).isEqualTo("12 3 W\n".getBytes(StandardCharsets.UTF_8));
     }
@@ -29,6 +30,7 @@ class MowerOutputWriterTest {
     void shouldWriteOneLinePerMowerInCallOrder_whenWritingSeveralMowers() throws IOException {
         mowerOutputWriter.write(new Mower(new Position(1, 3), Orientation.NORTH));
         mowerOutputWriter.write(new Mower(new Position(5, 1), Orientation.EAST));
+        mowerOutputWriter.flush();
 
         assertThat(stdout.toString(StandardCharsets.UTF_8)).isEqualTo("1 3 N\n5 1 E\n");
     }
@@ -36,6 +38,7 @@ class MowerOutputWriterTest {
     @Test
     void shouldWriteErrorWithLineNumber_whenErrorIsLocatedAtLine() throws IOException {
         mowerOutputWriter.writeError(new BusinessValidationException(BusinessErrorCode.INVALID_ORIENTATION, "invalid orientation 'X'").atLine(4));
+        mowerOutputWriter.flush();
 
         assertThat(stdout.toByteArray()).isEqualTo("ERROR line 4: invalid orientation 'X'\n".getBytes(StandardCharsets.UTF_8));
     }
@@ -43,6 +46,7 @@ class MowerOutputWriterTest {
     @Test
     void shouldWriteErrorWithoutLineNumber_whenErrorHasNoLine() throws IOException {
         mowerOutputWriter.writeError(new BusinessValidationException(BusinessErrorCode.INVALID_INSTRUCTION, "invalid instruction 'A'"));
+        mowerOutputWriter.flush();
 
         assertThat(stdout.toString(StandardCharsets.UTF_8)).isEqualTo("ERROR: invalid instruction 'A'\n");
     }
@@ -50,7 +54,15 @@ class MowerOutputWriterTest {
     @Test
     void shouldWriteEscapedErrorWithoutLineNumber_whenWritingDescriptionOnly() throws IOException {
         mowerOutputWriter.writeError("file not found: a\tb.txt");
+        mowerOutputWriter.flush();
 
         assertThat(stdout.toString(StandardCharsets.UTF_8)).isEqualTo("ERROR: file not found: a\\tb.txt\n");
+    }
+
+    @Test
+    void shouldWriteNothing_whenNotFlushedYet() throws IOException {
+        mowerOutputWriter.write(new Mower(new Position(1, 3), Orientation.NORTH));
+
+        assertThat(stdout.size()).isZero();
     }
 }
