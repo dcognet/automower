@@ -42,11 +42,20 @@ class MowingPlanFileMapperTest {
     }
 
     @Test
-    void shouldConvertCoordinates_whenWrittenWithNineDigits() {
-        MowingPlan plan = MowingPlanFileMapper.toMowingPlan(List.of("999999999 999999999", "999999999 0 N", "F"));
+    void shouldConvertCoordinates_whenAtMaximumLawnDimension() {
+        MowingPlan plan = MowingPlanFileMapper.toMowingPlan(List.of("40075016 40075016", "40075016 0 N", "F"));
 
-        assertThat(plan.lawn()).isEqualTo(new Lawn(999999999, 999999999));
-        assertThat(plan.programs().getFirst().mower().position()).isEqualTo(new Position(999999999, 0));
+        assertThat(plan.lawn()).isEqualTo(new Lawn(40075016, 40075016));
+        assertThat(plan.programs().getFirst().mower().position()).isEqualTo(new Position(40075016, 0));
+    }
+
+    @ParameterizedTest
+    @MethodSource("inconsistentPlans")
+    void shouldRejectLineInError_whenPlanIsWellFormedButInconsistent(List<String> lines, int expectedLine, BusinessErrorCode expectedCode) {
+        BusinessValidationException exception = reject(lines);
+
+        assertThat(exception.getCode()).isEqualTo(expectedCode);
+        assertThat(exception.getLineNumber()).hasValue(expectedLine);
     }
 
     @ParameterizedTest
@@ -69,7 +78,7 @@ class MowingPlanFileMapperTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"05", "00", "+3", "-0", "-1", "\uFF15", "\u0665", "1.5", "1e3", "abc", "A", "1234567890"})
+    @ValueSource(strings = {"05", "00", "+3", "-0", "-1", "\uFF15", "\u0665", "1.5", "1e3", "abc", "A", "1234567890", "99999999999999999999"})
     void shouldRejectCoordinate_whenNotWrittenAsAsciiNaturalNumber(String coordinate) {
         BusinessValidationException onLawn = reject(List.of("5 " + coordinate, "1 2 N", "F"));
         BusinessValidationException onPosition = reject(List.of("5 5", coordinate + " 2 N", "F"));
@@ -165,6 +174,17 @@ class MowingPlanFileMapperTest {
         );
     }
 
+    private static Stream<Arguments> inconsistentPlans() {
+        return Stream.of(
+                Arguments.of(List.of("0 0", "0 0 N", "F"), 1, BusinessErrorCode.SINGLE_CELL_LAWN),
+                Arguments.of(List.of("40075017 5", "1 2 N", "F"), 1, BusinessErrorCode.INVALID_LAWN_DIMENSION),
+                Arguments.of(List.of("999999999 5", "1 2 N", "F"), 1, BusinessErrorCode.INVALID_LAWN_DIMENSION),
+                Arguments.of(List.of("5 5", "6 2 N", "F"), 2, BusinessErrorCode.START_OUTSIDE_LAWN),
+                Arguments.of(List.of("5 5", "1 2 N", "F", "999999999 0 E", "F"), 4, BusinessErrorCode.START_OUTSIDE_LAWN),
+                Arguments.of(List.of("5 5", "1 2 N", "F", "3 3 E", "L", "1 2 E", "R"), 6, BusinessErrorCode.DUPLICATE_START)
+        );
+    }
+
     private static Stream<Arguments> filesWithEmptyLine() {
         return Stream.of(
                 Arguments.of(List.of("", "1 2 N", "F"), 1),
@@ -190,7 +210,12 @@ class MowingPlanFileMapperTest {
                 Arguments.of(List.of("5 5", "1 2 N", "LFA", "-1 3 E"), 3, BusinessErrorCode.INVALID_INSTRUCTION),
                 Arguments.of(List.of("5 5", "1 2 N", "F", "3 3 n", "X"), 4, BusinessErrorCode.INVALID_ORIENTATION),
                 Arguments.of(List.of("5 5", "1 2 N", "", "3 3 n", "X"), 3, BusinessErrorCode.EMPTY_LINE),
-                Arguments.of(List.of("5 5", "1 2 N", "F\r", "", "X"), 3, BusinessErrorCode.INVALID_CHARACTER)
+                Arguments.of(List.of("5 5", "1 2 N", "F\r", "", "X"), 3, BusinessErrorCode.INVALID_CHARACTER),
+                Arguments.of(List.of("0 0", "1 2 X", "LFA"), 1, BusinessErrorCode.SINGLE_CELL_LAWN),
+                Arguments.of(List.of("5 5", "6 2 N", "LFA"), 2, BusinessErrorCode.START_OUTSIDE_LAWN),
+                Arguments.of(List.of("5 5", "1 2 N", "LFA", "1 2 E", "F"), 3, BusinessErrorCode.INVALID_INSTRUCTION),
+                Arguments.of(List.of("5 5", "1 2 N", "F", "1 2 E", "LFA"), 4, BusinessErrorCode.DUPLICATE_START),
+                Arguments.of(List.of("5 5", "1 2 N", "F", "1 2 X", "F"), 4, BusinessErrorCode.INVALID_ORIENTATION)
         );
     }
 

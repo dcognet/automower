@@ -6,6 +6,7 @@ import com.automower.domain.MowerProgram;
 import com.automower.domain.MowingPlan;
 import com.automower.domain.Orientation;
 import com.automower.domain.Position;
+import com.automower.domain.StartingPositions;
 import com.automower.domain.exception.BusinessErrorCode;
 import com.automower.domain.exception.BusinessValidationException;
 
@@ -35,10 +36,11 @@ public final class MowingPlanFileMapper {
     public static MowingPlan toMowingPlan(List<String> lines) {
         Lawn lawn = mapLine(lines, LAWN_LINE_INDEX, MowingPlanFileMapper::toLawn);
         requireLine(lines, FIRST_MOWER_LINE_INDEX, BusinessErrorCode.MISSING_MOWER, "missing mower position line");
+        StartingPositions startingPositions = new StartingPositions(lawn);
         List<MowerProgram> programs = new ArrayList<>();
         // chaque tondeuse est un couple de lignes consécutives : position, puis instructions
         for (int i = FIRST_MOWER_LINE_INDEX; i < lines.size(); i += LINES_PER_MOWER) {
-            Mower mower = mapLine(lines, i, MowingPlanFileMapper::toMower);
+            Mower mower = mapLine(lines, i, line -> toStartingMower(line, startingPositions));
             requireLine(lines, i + 1, BusinessErrorCode.MISSING_INSTRUCTIONS, "missing instruction line");
             programs.add(mapLine(lines, i + 1, instructions -> new MowerProgram(mower, instructions)));
         }
@@ -86,6 +88,12 @@ public final class MowingPlanFileMapper {
             throw new BusinessValidationException(BusinessErrorCode.INVALID_LAWN_LINE, "lawn line must contain 2 values separated by a single space");
         }
         return new Lawn(toCoordinate(matcher.group(1)), toCoordinate(matcher.group(2)));
+    }
+
+    private static Mower toStartingMower(String line, StartingPositions startingPositions) {
+        Mower mower = toMower(line);
+        startingPositions.add(mower.position());
+        return mower;
     }
 
     private static Mower toMower(String line) {
