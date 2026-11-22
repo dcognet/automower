@@ -22,6 +22,8 @@ public final class MowingPlanFileMapper {
     private static final Pattern POSITION_LINE = Pattern.compile("([^ ]+) ([^ ]+) ([^ ]+)");
     // au plus 9 chiffres ASCII : la conversion en int ne peut pas déborder
     private static final Pattern COORDINATE = Pattern.compile("0|[1-9][0-9]{0,8}");
+    private static final char BYTE_ORDER_MARK = '\uFEFF';
+    private static final char CARRIAGE_RETURN = '\r';
     private static final int LAWN_LINE_INDEX = 0;
     private static final int FIRST_MOWER_LINE_INDEX = 1;
     private static final int LINES_PER_MOWER = 2;
@@ -52,9 +54,25 @@ public final class MowingPlanFileMapper {
 
     private static <T> T mapLine(List<String> lines, int index, Function<String, T> mapper) {
         try {
-            return mapper.apply(lines.get(index));
+            String line = lines.get(index);
+            checkLineStructure(line, index);
+            return mapper.apply(line);
         } catch (BusinessValidationException exception) {
             throw exception.atLine(lineNumber(index));
+        }
+    }
+
+    private static void checkLineStructure(String line, int index) {
+        // le BOM est décodé en U+FEFF : il ne peut apparaître qu'en tête de la première ligne
+        if (index == LAWN_LINE_INDEX && !line.isEmpty() && line.charAt(0) == BYTE_ORDER_MARK) {
+            throw new BusinessValidationException(BusinessErrorCode.UNEXPECTED_BYTE_ORDER_MARK, "unexpected byte order mark");
+        }
+        if (line.isEmpty()) {
+            throw new BusinessValidationException(BusinessErrorCode.EMPTY_LINE, "empty line");
+        }
+        // un \r suivi de \n a été retiré au découpage : celui qui reste est une fin de ligne invalide
+        if (line.indexOf(CARRIAGE_RETURN) >= 0) {
+            throw new BusinessValidationException(BusinessErrorCode.INVALID_CHARACTER, "invalid character '" + CARRIAGE_RETURN + "'");
         }
     }
 
