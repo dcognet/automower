@@ -1,10 +1,13 @@
 package com.automower.domain;
 
+import com.automower.domain.exception.BusinessErrorCode;
+import com.automower.domain.exception.BusinessValidationException;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
 class MowingPlanTest {
 
@@ -65,5 +68,24 @@ class MowingPlanTest {
                 new Mower(new Position(1, 1), Orientation.NORTH),
                 new Mower(new Position(2, 0), Orientation.EAST)
         );
+    }
+
+    @Test
+    void shouldRejectPlan_whenStartingPositionIsOutsideLawn() {
+        MowerProgram program = new MowerProgram(new Mower(new Position(6, 2), Orientation.NORTH), "F");
+
+        BusinessValidationException exception = catchThrowableOfType(BusinessValidationException.class, () -> new MowingPlan(new Lawn(5, 5), List.of(program)));
+
+        assertThat(exception.getCode()).isEqualTo(BusinessErrorCode.START_OUTSIDE_LAWN);
+    }
+
+    @Test
+    void shouldRejectPlan_whenTwoMowersStartOnSameCell() {
+        MowerProgram first = new MowerProgram(new Mower(new Position(1, 2), Orientation.NORTH), "F");
+        MowerProgram second = new MowerProgram(new Mower(new Position(1, 2), Orientation.EAST), "F");
+
+        BusinessValidationException exception = catchThrowableOfType(BusinessValidationException.class, () -> new MowingPlan(new Lawn(5, 5), List.of(first, second)));
+
+        assertThat(exception.getCode()).isEqualTo(BusinessErrorCode.DUPLICATE_START);
     }
 }

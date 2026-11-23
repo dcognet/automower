@@ -7,6 +7,8 @@ public record MowingPlan(Lawn lawn, List<MowerProgram> programs) {
 
     public MowingPlan {
         programs = List.copyOf(programs);
+        StartingPositions startingPositions = new StartingPositions(lawn);
+        programs.forEach(program -> startingPositions.add(program.mower().position()));
     }
 
     public List<Mower> run() {

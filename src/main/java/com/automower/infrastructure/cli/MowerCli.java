@@ -1,6 +1,7 @@
 package com.automower.infrastructure.cli;
 
 import com.automower.application.MowLawnUseCase;
+import com.automower.domain.MowingPlan;
 import com.automower.domain.exception.BusinessErrorCode;
 import com.automower.domain.exception.BusinessValidationException;
 import com.automower.infrastructure.file.MowingPlanFileReader;
@@ -16,18 +17,19 @@ public class MowerCli {
     private static final int EXIT_USAGE = 2;
     private static final String USAGE = "usage: mower <file>";
 
+    private final MowingPlanFileReader mowingPlanFileReader;
     private final MowLawnUseCase mowLawnUseCase;
     private final MowerOutputWriter mowerOutputWriter;
 
-    public MowerCli(MowLawnUseCase mowLawnUseCase, MowerOutputWriter mowerOutputWriter) {
+    public MowerCli(MowingPlanFileReader mowingPlanFileReader, MowLawnUseCase mowLawnUseCase, MowerOutputWriter mowerOutputWriter) {
+        this.mowingPlanFileReader = mowingPlanFileReader;
         this.mowLawnUseCase = mowLawnUseCase;
         this.mowerOutputWriter = mowerOutputWriter;
     }
 
     public static void main(String[] args) throws IOException {
-        MowerOutputWriter mowerOutputWriter = new MowerOutputWriter(System.out);
-        MowLawnUseCase mowLawnUseCase = new MowLawnUseCase(new MowingPlanFileReader(), mowerOutputWriter);
-        System.exit(new MowerCli(mowLawnUseCase, mowerOutputWriter).run(args));
+        MowerCli cli = new MowerCli(new MowingPlanFileReader(), new MowLawnUseCase(), new MowerOutputWriter(System.out));
+        System.exit(cli.run(args));
     }
 
     public int run(String[] args) throws IOException {
@@ -45,7 +47,8 @@ public class MowerCli {
             return EXIT_USAGE;
         }
         try {
-            mowLawnUseCase.mow(toPath(args[0]));
+            MowingPlan plan = mowingPlanFileReader.read(toPath(args[0]));
+            mowerOutputWriter.write(mowLawnUseCase.mow(plan));
             return EXIT_SUCCESS;
         } catch (BusinessValidationException exception) {
             // le plan est validé en entier avant la simulation : aucune position n'a été écrite
