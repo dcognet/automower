@@ -29,12 +29,13 @@ flowchart LR
 ```mermaid
 flowchart LR
   User[Appelant : shell / script / CI] -->|java -jar mower.jar fichier| Main[infrastructure.cli : point d'entrée]:::nouveau
-  Main -->|chemin du fichier| UseCase[application : MowLawnUseCase]:::nouveau
-  UseCase -->|chemin du fichier| Reader[infrastructure.file : lecture, décodage et analyse]:::nouveau
+  Main -->|chemin du fichier| Reader[infrastructure.file : lecture, décodage et analyse]:::nouveau
   Reader -->|taille, octets| FS[(Système de fichiers : fichier d'entrée)]
   Reader -->|construit le modèle validé| Domain
-  UseCase -->|modèle : simule| Domain[domain : pelouse, tondeuses, instructions, erreurs]:::nouveau
-  UseCase -->|positions finales| Writer[infrastructure.cli : rendu stdout]:::nouveau
+  Main -->|modèle validé| UseCase[application : MowLawnUseCase]:::nouveau
+  UseCase -->|simule| Domain[domain : pelouse, tondeuses, instructions, erreurs]:::nouveau
+  UseCase -->|positions finales| Main
+  Main -->|positions finales| Writer[infrastructure.cli : rendu stdout]:::nouveau
   Main -->|erreur| Writer
   Writer -->|texte UTF-8, fins de ligne \n| Out[Sortie standard]
   Main -->|code de sortie| User
@@ -44,10 +45,10 @@ flowchart LR
 **Delta** : un seul nouvel exécutable apparaît, découpé en trois couches.
 
 - **`domain`** (pur : ni I/O, ni framework) porte le modèle — pelouse, position, orientation, instruction, tondeuse —, la grille d'occupation, la simulation (RM-05 à RM-10, RM-15, RM-25), la validation fonctionnelle des valeurs (invariants des value objects, `Orientation.fromCode`, `Instruction.fromCode` : RM-04, RM-14 à RM-19, RM-24 à RM-26) et le catalogue d'erreurs métier. Il ne connaît ni la notion de ligne ni le format du fichier. Sa pureté est garantie par un test ArchUnit (`DomainPurityTest`).
-- **`application`** porte un cas d'usage unique, `MowLawnUseCase` : il obtient le modèle validé (`MowingPlan`) du lecteur de `infrastructure`, déclenche la simulation et fait écrire les positions finales, dans l'ordre du fichier, par le rendu stdout de `infrastructure` (§ 1 de `conventions/java.md` : le cas d'usage charge → délègue au domaine → restitue, les classes concrètes d'`infrastructure` lui sont injectées).
+- **`application`** porte un cas d'usage unique, `MowLawnUseCase` : il reçoit le modèle validé (`MowingPlan`), déclenche la simulation et renvoie les positions finales, dans l'ordre du fichier. Il ne dépend d'aucun adapter : chaque point d'entrée (la CLI, une future API) construit le modèle depuis son format et rend le résultat dans le sien. Un test ArchUnit (`ArchitectureTest`) interdit toute dépendance `application → infrastructure`.
 - **`infrastructure`** porte tout ce qui touche au monde extérieur : lecture du fichier (existence, dossier, droits, taille RM-27, décodage UTF-8 RM-30, découpage des lignes RM-21), analyse syntaxique ligne à ligne vers le modèle du domaine (RM-20 à RM-22, RM-28, RM-29, RM-31), point d'entrée CLI (arguments, code de sortie), rendu sur stdout (RM-11, RM-32).
 
-Flux : point d'entrée → cas d'usage → lecture et analyse (erreurs « fichier entier » puis erreurs « ligne ») → simulation par le domaine → rendu. Le point d'entrée se limite aux arguments, au câblage des dépendances et au code de sortie. Toute erreur, quelle que soit la couche qui la lève, remonte au point d'entrée qui la rend au format RM-32. Il n'y a ni appel réseau, ni persistance, ni concurrence.
+Flux : point d'entrée → lecture et analyse (erreurs « fichier entier » puis erreurs « ligne ») → cas d'usage → simulation par le domaine → rendu par le point d'entrée. Le point d'entrée se limite aux arguments, au câblage des dépendances, à l'enchaînement lecture → cas d'usage → rendu et au code de sortie. Toute erreur, quelle que soit la couche qui la lève, remonte au point d'entrée qui la rend au format RM-32. Il n'y a ni appel réseau, ni persistance, ni concurrence.
 
 ## Choix techniques
 
@@ -60,7 +61,9 @@ Jar exécutable (`Main-Class` dans le manifeste, dépendances embarquées si né
 
 ### Architecture hexagonale épurée à 3 couches
 
-Application du § 1 « Architecture hexagonale (DDD) » de `conventions/java.md` : `domain/`, `application/`, `infrastructure/`, rôle DDD porté par la place dans l'arborescence, pas d'interface à implémentation unique (la lecture de fichier et le rendu stdout sont des classes concrètes de `infrastructure`, injectées dans le cas d'usage — dépendance `application → infrastructure` assumée), domaine pur vérifié par ArchUnit.
+Application du § 1 « Architecture hexagonale (DDD) » de `conventions/java.md` : `domain/`, `application/`, `infrastructure/`, rôle DDD porté par la place dans l'arborescence, pas d'interface à implémentation unique (la lecture de fichier, le rendu stdout et le cas d'usage sont des classes concrètes), domaine pur vérifié par ArchUnit. La dépendance `application → infrastructure`, que la convention tolère, n'existe pas ici : le cas d'usage reçoit le modèle et renvoie le résultat, ce qui le rend réutilisable tel quel par une future API (arbitrage utilisateur), et `ArchitectureTest` le garantit.
+
+- *Écartée — ports de sortie dans `application` (source du plan, destination du résultat) implémentés par `infrastructure`* : ils inverseraient la dépendance, mais une API appelée en HTTP devrait envelopper le corps de la requête dans une source et accumuler le résultat dans une destination pour le renvoyer. Ces ports ne se justifient que si l'application va elle-même chercher ou publier (job planifié, service distant).
 
 - *Écartée — architecture en couches classique* (arbitrage utilisateur) : ses couches (`controllers/`, `repository/`, `clients/`) sont pensées pour un microservice REST + JPA, absents ici ; l'hexagonal isole en revanche la simulation — le cœur évalué du test — de toute I/O, ce qui la rend testable sans fichier.
 
@@ -126,12 +129,12 @@ Value objects en `record` immuables qui valident leurs invariants dans leur cons
 
 ### Tests
 
-JUnit 6 + AssertJ + Mockito, conformément au § 9 de `conventions/java.md` :
+JUnit 6 + AssertJ, conformément au § 9 de `conventions/java.md` (pas de Mockito : aucune classe testée n'a de collaborateur à simuler) :
 
 - **tests unitaires** `*Test`, nommés `shouldX_whenY`, sur le domaine (rotations, déplacements, blocages, grille, validation par règle), sur le découpage des lignes et sur l'analyse du fichier, paramétrés par cas ;
 - **tests d'intégration** `*IntegrationTest`, nommés `action_contexte_resultat` avec javadoc de scénario en français, qui lancent le vrai point d'entrée sur des fichiers et comparent stdout et le code de sortie. Fixtures lisibles dans `src/test/resources` ; les cas en octets (BOM, `\r` isolé, UTF-8 invalide, fichier de 10 000 001 octets) sont générés par les tests et non commités. Chaque RM a au moins un cas qui la cite ; RM-12 est le test d'acceptation principal ;
 - **`DomainPurityTest`** (ArchUnit) : `domain` n'importe rien de `java.io`, `java.nio.file` ni d'aucune librairie hors Apache Commons ;
-- **tests unitaires avec Mockito** sur le cas d'usage (`MowLawnUseCase`), dont le lecteur et le rendu sont mockés ;
+- **`ArchitectureTest`** (ArchUnit) : `application` ne dépend pas de `infrastructure` ;
 - **mutation testing PIT** sur `com.automower.domain`, lancé par `mvn verify` avec un seuil de 100 % de mutants tués : un mutant survivant fait échouer le build et se corrige en renforçant les tests, jamais en réduisant le périmètre.
 
 - *Écartée — Cucumber/Gherkin* : lisible côté fonctionnel, mais une couche d'outillage complète pour un développeur seul, quand des tests paramétrés nommés par règle donnent la même traçabilité.
@@ -154,8 +157,8 @@ Dépendances de build et d'exécution, toutes disponibles sur Maven Central :
 |---|---|---|
 | JDK 25 LTS, Maven 3.10 | build | compilation, packaging du jar exécutable |
 | Apache Commons Lang 3, Commons Collections 4 | runtime | tests de vide/blanc imposés par la convention |
-| JUnit 6, AssertJ, Mockito | test | tests unitaires et d'intégration |
-| ArchUnit | test | `DomainPurityTest` |
+| JUnit 6, AssertJ | test | tests unitaires et d'intégration |
+| ArchUnit | test | `DomainPurityTest`, `ArchitectureTest` |
 | PIT (pitest-maven + pitest-junit5-plugin) | build | mutation testing du domaine, seuil 100 % dans `verify` |
 
 Référentiel consommé : `conventions/java.md` du plugin `pricing-agent` (règles de code, de validation et de tests ; règles propres au namespace Pricing Manager exclues).
