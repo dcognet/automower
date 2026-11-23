@@ -304,7 +304,7 @@ class MowerCliIntegrationTest {
 
     private MowerCli newCli() {
         MowerOutputWriter mowerOutputWriter = new MowerOutputWriter(stdout);
-        return new MowerCli(new MowLawnUseCase(new MowingPlanFileReader(), mowerOutputWriter), mowerOutputWriter);
+        return new MowerCli(new MowingPlanFileReader(), new MowLawnUseCase(), mowerOutputWriter);
     }
 
     private static String fixture(String name) throws URISyntaxException, IOException {

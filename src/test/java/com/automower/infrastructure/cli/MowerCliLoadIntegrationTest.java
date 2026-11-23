@@ -70,7 +70,7 @@ class MowerCliLoadIntegrationTest {
 
     private Duration timedRun(Path input) throws IOException {
         MowerOutputWriter mowerOutputWriter = new MowerOutputWriter(stdout);
-        MowerCli cli = new MowerCli(new MowLawnUseCase(new MowingPlanFileReader(), mowerOutputWriter), mowerOutputWriter);
+        MowerCli cli = new MowerCli(new MowingPlanFileReader(), new MowLawnUseCase(), mowerOutputWriter);
         long start = System.nanoTime();
         int exitCode = cli.run(new String[]{input.toString()});
         Duration duration = Duration.ofNanos(System.nanoTime() - start);

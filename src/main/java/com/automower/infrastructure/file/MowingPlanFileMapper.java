@@ -39,6 +39,7 @@ public final class MowingPlanFileMapper {
         StartingPositions startingPositions = new StartingPositions(lawn);
         List<MowerProgram> programs = new ArrayList<>();
         // chaque tondeuse est un couple de lignes consécutives : position, puis instructions
+        // les départs sont aussi validés par MowingPlan, mais ici au fil des lignes : la première erreur du fichier doit primer (RM-23)
         for (int i = FIRST_MOWER_LINE_INDEX; i < lines.size(); i += LINES_PER_MOWER) {
             Mower mower = mapLine(lines, i, line -> toStartingMower(line, startingPositions));
             requireLine(lines, i + 1, BusinessErrorCode.MISSING_INSTRUCTIONS, "missing instruction line");

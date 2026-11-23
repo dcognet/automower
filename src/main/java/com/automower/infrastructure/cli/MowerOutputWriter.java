@@ -9,6 +9,7 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 public class MowerOutputWriter {
 
@@ -21,8 +22,10 @@ public class MowerOutputWriter {
         this.stdout = new BufferedWriter(new OutputStreamWriter(stdout, StandardCharsets.UTF_8));
     }
 
-    public void write(Mower mower) throws IOException {
-        writeLine(MowerFormatter.format(mower));
+    public void write(List<Mower> mowers) throws IOException {
+        for (Mower mower : mowers) {
+            writeLine(MowerFormatter.format(mower));
+        }
     }
 
     public void writeError(BusinessValidationException exception) throws IOException {
