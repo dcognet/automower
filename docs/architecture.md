@@ -1,35 +1,54 @@
 # Architecture du code
 
-Vue du code livré, à mettre à jour dans la PR de chaque US qui ajoute ou déplace une classe. La conception cible et ses arbitrages sont dans [`plans/tondeuse.tech.md`](plans/tondeuse.tech.md).
+Vue du code livré, à mettre à jour dans la PR de chaque US qui ajoute ou déplace une classe. La conception initiale et ses arbitrages sont dans [`plans/tondeuse.tech.md`](plans/tondeuse.tech.md). Cette conception décrit une CLI lisant un fichier texte : depuis, la CLI a été remplacée par une API HTTP JSON.
 
 ## Couches
 
 Hexagonal à 3 couches (§ 1 de `conventions/java.md`) :
 
 - **`domain`** : modèle immuable et règles métier. Pur, sans I/O ni framework, ce que vérifie `DomainPurityTest` (ArchUnit).
-- **`application`** : `MowLawnUseCase` reçoit un `MowingPlan` déjà construit et renvoie les tondeuses finales. La couche ne dépend d'aucun adapter, ce que vérifie `ArchitectureTest` (ArchUnit) : chaque point d'entrée (CLI aujourd'hui, API demain) produit le plan dans son format et rend le résultat dans le sien.
-- **`infrastructure`** : adapters concrets, sans interface tant qu'il n'existe qu'une implémentation. `file` lit et analyse le fichier d'entrée, `cli` porte le point d'entrée, appelle le cas d'usage et rend son résultat sur stdout.
+- **`application`** : `MowLawnUseCase` reçoit un `MowingPlan` déjà construit et renvoie les tondeuses finales. La couche ne dépend d'aucun adapter, ce que vérifie `ArchitectureTest` (ArchUnit), ni de Spring : le cas d'usage est déclaré comme bean dans `infrastructure.config.UseCaseConfig`.
+- **`infrastructure`** : tout ce qui touche à Spring. `MowerApplication` démarre l'application, `config` déclare les beans des couches internes, `web` porte l'API REST : contrôleur, DTO (records, avec leurs sous-objets en records imbriqués), mapper et traduction des erreurs en `ProblemDetail`. Le passage à l'API n'a modifié aucun fichier hors de `infrastructure`.
+
+## API
+
+`POST /mowings`, corps `application/json` :
+
+```json
+{
+  "lawn": {"maxX": 5, "maxY": 5},
+  "mowers": [
+    {"x": 1, "y": 2, "orientation": "N", "instructions": "LFLFLFLFF"},
+    {"x": 3, "y": 3, "orientation": "E", "instructions": "FFRFFRFRRF"}
+  ]
+}
+```
+
+Réponse `200`, une entrée par tondeuse dans l'ordre de la requête, dans l'enveloppe `items` (§ 3, réponses de type liste) :
+
+```json
+{"items": [{"x": 1, "y": 3, "orientation": "N"}, {"x": 5, "y": 1, "orientation": "E"}]}
+```
+
+Erreur : `400`, `application/problem+json` (RFC 7807) avec le membre d'extension `code` (nom stable de `BusinessErrorCode`, `MALFORMED_REQUEST` pour un corps illisible ou `MISSING_MOWER` pour une liste de tondeuses vide), par exemple `{"status": 400, "title": "Invalid orientation", "detail": "invalid orientation 'X'", "code": "INVALID_ORIENTATION", "instance": "/mowings"}`.
 
 ## Vue des classes
 
 ```mermaid
 flowchart LR
-  subgraph infra_cli[infrastructure.cli]
-    MowerCli
-    MowerOutputWriter
-    MowerFormatter
-    ErrorFormatter
+  subgraph infra_config[infrastructure.config]
+    UseCaseConfig
+  end
+  subgraph infra_web[infrastructure.web]
+    MowingController
+    MowingWebMapper
+    MowingRequest
+    MowingResponse
+    ApiExceptionHandler
+    MissingMowerException
   end
   subgraph app[application]
     MowLawnUseCase
-  end
-  subgraph infra_file[infrastructure.file]
-    MowingPlanFileReader
-    LineSplitter
-    MowingPlanFileMapper
-    InputFileException
-    InputFileErrorCode
-    InvalidLineException
   end
   subgraph domain[domain]
     MowingPlan
@@ -45,24 +64,22 @@ flowchart LR
     BusinessErrorCode
   end
 
-  MowerCli -->|"1. read(path)"| MowingPlanFileReader
-  MowingPlanFileReader -->|"bytes UTF-8"| LineSplitter
-  MowingPlanFileReader -->|"lignes"| MowingPlanFileMapper
-  MowingPlanFileMapper -->|"construit"| MowingPlan
-  MowingPlanFileMapper -->|"add(départ), ligne par ligne"| StartingPositions
-  StartingPositions --> Lawn
-  MowerCli -->|"2. mow(plan)"| MowLawnUseCase
+  MowingController -->|"reçoit"| MowingRequest
+  MowingController -->|"1. toMowingPlan(request)"| MowingWebMapper
+  MowingWebMapper -->|"construit"| MowingPlan
+  MowingController -->|"2. mow(plan)"| MowLawnUseCase
   MowLawnUseCase -->|"run()"| MowingPlan
-  MowerCli -->|"3. write(mowers)"| MowerOutputWriter
-  MowerOutputWriter --> MowerFormatter
-  MowerCli -.->|"writeError(n, message) ou writeError(message), code 1 ; usage, code 2"| MowerOutputWriter
-  MowerOutputWriter --> ErrorFormatter
+  MowingController -->|"3. toResponse(mowers)"| MowingWebMapper
+  MowingWebMapper -->|"construit"| MowingResponse
+  UseCaseConfig -->|"@Bean"| MowLawnUseCase
+  ApiExceptionHandler -.->|"BusinessValidationException, MissingMowerException, corps illisible → 400 ProblemDetail"| BusinessErrorCode
 
   MowingPlan --> Lawn
   MowingPlan -->|"add(départ), à la construction"| StartingPositions
+  StartingPositions --> Lawn
   MowingPlan -->|"crée avec les cases de départ"| OccupancyGrid
   OccupancyGrid --> Lawn
-  MowingPlan -->|"1..n, ordre du fichier"| MowerProgram
+  MowingPlan -->|"1..n, ordre de la requête"| MowerProgram
   MowerProgram -->|"runOn(grid)"| Mower
   Mower -->|"isFree(cible)"| OccupancyGrid
   Mower --> Position
@@ -73,25 +90,19 @@ flowchart LR
   MowerProgram -.->|"séquence vide"| BusinessValidationException
   Lawn -.->|"dimension hors bornes, pelouse 0 0"| BusinessValidationException
   StartingPositions -.->|"départ hors pelouse ou en doublon"| BusinessValidationException
-  MowingPlanFileMapper -.->|"structure et format de ligne, ligne absente"| InputFileException
-  MowingPlanFileMapper -.->|"toute erreur d'une ligne, avec son numéro"| InvalidLineException
-  InvalidLineException -.->|"cause"| InputFileException
-  InvalidLineException -.->|"cause"| BusinessValidationException
-  MowingPlanFileReader -.->|"fichier absent, illisible, vide, trop gros, non UTF-8"| InputFileException
-  InputFileException --> InputFileErrorCode
+  MowingWebMapper -.->|"aucune tondeuse"| MissingMowerException
   BusinessValidationException --> BusinessErrorCode
 ```
 
 ## Flux d'exécution
 
-1. `MowerCli` vérifie qu'il a reçu exactement un argument (sinon `ERROR: usage: mower <file>`, code `2`, sans lecture de l'entrée standard), puis demande le plan à `MowingPlanFileReader` avec le chemin du fichier. Un chemin invalide pour le système de fichiers (caractère NUL) est signalé comme fichier absent, code `1`.
-2. `MowingPlanFileReader` fait les contrôles sur le fichier entier, sans numéro de ligne, chacun bloquant le suivant : chemin absent, dossier ou illisible → taille annoncée par `Files.size` (> 10 000 000 octets : rejet avant toute lecture du contenu) → lecture plafonnée à 10 000 001 octets (`readNBytes`, qui borne la mémoire même si la taille annoncée était fausse : fichier qui grossit, pipe nommé) → fichier vide → décodage UTF-8 strict (`CharsetDecoder` en mode `REPORT`). Une `IOException` est traduite en `InputFileException` « fichier illisible ». Ensuite, `LineSplitter` découpe les lignes sur `\n` (un `\r` qui précède est retiré, un `\r` isolé reste dans la ligne ; un unique saut de ligne final ne produit pas de ligne vide, un second en produit une).
-3. `MowingPlanFileMapper` traduit les lignes en `MowingPlan` : la pelouse, puis un `MowerProgram` par couple de lignes (position, instructions), dans l'ordre du fichier. C'est le seul endroit qui connaît le format texte. Avant d'analyser une ligne, il en vérifie la structure : un BOM (U+FEFF) en tête de la ligne 1, une ligne vide ou un `\r` restant sont rejetés sur cette ligne. Une ligne d'instructions vide est donc signalée comme ligne vide (RM-21) : le refus d'une séquence vide par `MowerProgram` (RM-20) reste un invariant du domaine. Les lignes de pelouse et de position sont reconnues par une regex ancrée (valeurs séparées par une seule espace U+0020, coordonnées `0|[1-9][0-9]{0,8}` en chiffres ASCII, vérifiées avant toute conversion en `int`) ; l'orientation et la ligne d'instructions sont validées par le domaine (`Orientation.fromCode`, `MowerProgram`). Le constructeur de `Lawn` borne chaque dimension à `0..40075016` et refuse la pelouse `0 0`. Chaque position de départ est confiée, au moment où sa ligne est analysée, à `StartingPositions` (un `HashSet<Position>`, O(1) moyen par tondeuse), qui la rejette si elle est hors pelouse ou déjà prise : l'erreur garde ainsi le numéro de sa ligne et l'ordre des lignes. Le constructeur de `MowingPlan` applique aussi ces deux règles, via `StartingPositions` : le plan est valide quel que soit l'adapter qui le construit. Pour un fichier, la règle s'exécute donc deux fois, mais le contrôle du mapper échoue toujours le premier : RM-23 impose de signaler la première erreur dans l'ordre des lignes, ce qu'une validation globale du plan ne permettrait pas. Les constructeurs et les `fromCode` du domaine portent la validation fonctionnelle : le plan obtenu est entièrement valide. L'analyse fait un seul passage dans l'ordre des lignes et s'arrête à la première erreur. Les erreurs de format (`InputFileException`, codes `InputFileErrorCode`) et les erreurs métier du domaine (`BusinessValidationException`, codes `BusinessErrorCode`, qui ignorent tout du fichier) levées pendant l'analyse d'une ligne sont enveloppées dans une `InvalidLineException`, qui porte le numéro de la ligne et garde l'erreur d'origine comme cause. Une ligne attendue mais absente (tondeuse, instructions) est signalée avec le numéro de la ligne attendue.
-4. `MowerCli` passe le plan à `MowLawnUseCase.mow`, qui délègue à `MowingPlan.run()`. `run()` crée une `OccupancyGrid` (grille creuse : un `HashSet<Position>`, la pelouse n'est jamais matérialisée ; `Position` redéfinit son hash, car celui d'un record, `31 * x + y`, fait collisionner les cases d'une grille dense de 10⁶ tondeuses) avec toutes les cases de départ, puis exécute les tondeuses l'une après l'autre : la suivante ne bouge qu'une fois la précédente arrêtée. Au démarrage, une tondeuse libère sa case de départ ; à l'arrêt, elle occupe sa case finale. Un `F` vers une case hors pelouse ou occupée est ignoré ; la simulation ne lève aucune erreur.
-5. `MowerCli` passe la liste des tondeuses finales à `MowerOutputWriter`, qui écrit `X Y O\n` en UTF-8 pour chaque tondeuse, dans l'ordre du fichier, dans un writer bufferisé que `MowerCli` vide une seule fois en fin d'exécution (succès comme erreur), puis `MowerCli` rend le code de sortie `0`.
+1. Jackson désérialise le corps en `MowingRequest` (records imbriqués `MowingRequest.Lawn`, `MowingRequest.Mower`). Un champ absent ou `null`, une valeur mal typée ou un élément `null` dans `mowers` sont refusés à cette étape (`application.yaml` : `fail-on-missing-creator-properties`, `fail-on-null-creator-properties`, `fail-on-null-for-primitives` ; `@JsonSetter(contentNulls = FAIL)` sur `mowers`) : `ApiExceptionHandler` traduit l'`HttpMessageNotReadableException` en `400` avec le code `MALFORMED_REQUEST`, sans exposer le message Jackson. Ce code est propre au format de la requête : il est défini dans `ApiExceptionHandler`, pas dans `BusinessErrorCode`.
+2. `MowingWebMapper.toMowingPlan` construit la `Lawn`, refuse une liste de tondeuses vide (`MissingMowerException`, code `MISSING_MOWER` défini comme `MALFORMED_REQUEST` dans `ApiExceptionHandler`), puis un `MowerProgram` par tondeuse, dans l'ordre de la requête. Il ne porte aucune autre règle : les constructeurs et les `fromCode` du domaine valident les dimensions de la pelouse (`0..40075016`, pas de `0 0`), l'orientation (`N`, `E`, `S`, `W`) et les instructions (`L`, `R`, `F`, séquence non vide). Le constructeur de `MowingPlan` vérifie enfin, via `StartingPositions`, qu'aucun départ n'est hors pelouse ni en doublon. Le plan obtenu est entièrement valide ; la première règle violée lève une `BusinessValidationException`.
+3. `MowingController` passe le plan à `MowLawnUseCase.mow`, qui délègue à `MowingPlan.run()`. `run()` crée une `OccupancyGrid` (grille creuse : un `HashSet<Position>`, la pelouse n'est jamais matérialisée ; `Position` redéfinit son hash, car celui d'un record, `31 * x + y`, fait collisionner les cases d'une grille dense) avec toutes les cases de départ, puis exécute les tondeuses l'une après l'autre : la suivante ne bouge qu'une fois la précédente arrêtée. Au démarrage, une tondeuse libère sa case de départ ; à l'arrêt, elle occupe sa case finale. Un `F` vers une case hors pelouse ou occupée est ignoré ; la simulation ne lève aucune erreur.
+4. `MowingWebMapper.toResponse` traduit les tondeuses finales en `MowingResponse` (`items` de `MowingResponse.Mower`, orientation restituée par son code), renvoyée en `200`.
 
-En cas d'erreur, `MowerCli` est le seul à traduire l'exception en texte : `ErrorFormatter` produit `ERROR line <n>: <description>` pour une `InvalidLineException`, ou `ERROR: <description>` pour une `InputFileException` sur le fichier entier, en échappant les caractères invisibles cités (`\\`, `\t`, `\r`, `\n`, `\uXXXX` pour les autres caractères de contrôle, de format et séparateurs de ligne) pour que le message tienne sur une ligne lisible, écrit par `MowerOutputWriter`, et le code de sortie est `1`. Comme le plan est validé en entier avant la simulation, aucune position finale n'a été écrite.
+En cas d'erreur métier, `ApiExceptionHandler` (`@RestControllerAdvice`) est le seul à connaître la traduction exception → HTTP : `400`, `title` = titre du `BusinessErrorCode`, `detail` = message de l'exception (en anglais), `code` = nom du `BusinessErrorCode`. Comme le plan est validé en entier avant la simulation, aucune tondeuse n'a bougé.
 
-Volumétrie (US-007) : un fichier de près de 10 Mo, avec une tondeuse et ~10⁷ instructions ou de l'ordre de 10⁶ tondeuses (~7.10⁵ dans le test, proche du maximum que permettent 10 Mo), est traité de l'ordre de la seconde avec la heap par défaut ; `MowerCliLoadIntegrationTest` le vérifie sur des fichiers générés, et il est exclu des tests lancés par PIT (pas des classes mutées : `targetClasses` et le seuil de 100 % sont inchangés), car il ne tue aucun mutant de plus.
+Ordre des erreurs : la pelouse est validée en premier, puis chaque tondeuse (orientation, instructions) dans l'ordre de la requête, puis les départs de toutes les tondeuses. Un départ en doublon sur la tondeuse 1 et une instruction invalide sur la tondeuse 3 remontent donc l'instruction invalide.
 
-Une nouvelle source d'entrée (API, Kafka) apporterait son propre adapter et son mapper vers le même `MowingPlan`, et rendrait elle-même la liste renvoyée par `MowLawnUseCase.mow`, sans toucher au domaine ni au cas d'usage. Elle bénéficierait des invariants portés par les constructeurs du domaine (pelouse, départs, orientations, instructions) ; seules les règles propres au format restent à écrire dans son mapper.
+Volumétrie : la taille du corps n'est pas bornée par l'application (la limite de 10 Mo de l'ancien fichier d'entrée n'a pas d'équivalent ici).
