@@ -54,7 +54,7 @@ Flux : point d'entrée → lecture et analyse (erreurs « fichier entier » puis
 
 ### Stack : Java 25 LTS + Maven, sans framework applicatif
 
-Jar exécutable (`Main-Class` dans le manifeste, dépendances embarquées si nécessaire). Librairies utilitaires autorisées, notamment Apache Commons Lang (`StringUtils`) et Collections (`CollectionUtils`) pour les tests de vide/blanc imposés par la convention de l'équipe.
+Jar exécutable (`Main-Class` dans le manifeste, dépendances embarquées si nécessaire). Librairies utilitaires autorisées hors du domaine, notamment Apache Commons Lang (`StringUtils`) et Collections (`CollectionUtils`) pour les tests de vide/blanc imposés par la convention de l'équipe ; aucune n'est utilisée aujourd'hui, elles s'ajoutent au `pom.xml` au premier besoin.
 
 - *Écartée — Spring Boot* (arbitrage utilisateur) : un conteneur IoC et son temps de démarrage sont surdimensionnés pour une CLI qui lit un fichier et écrit sur stdout ; l'injection par constructeur se fait à la main dans le point d'entrée.
 - *Écartées — Kotlin, Python* (arbitrage utilisateur).
@@ -111,7 +111,7 @@ Un `HashSet<Position>` initialisé avec toutes les positions de départ (RM-25) 
 
 ### Modèle du domaine immuable
 
-Value objects en `record` immuables qui valident leurs invariants dans leur constructeur compact (`Lawn`, `Position`, `Mower`), enums `Orientation` (rotation gauche/droite, déplacement unitaire) et `Instruction`. Les déplacements renvoient une nouvelle instance. La séquence d'instructions est conservée sous forme de `String`, validée caractère par caractère (`Instruction.fromCode`) dans le constructeur compact de `MowerProgram`, puis parcourue caractère par caractère, pas en `List<Instruction>` : la simulation ne travaille que sur une séquence déjà validée et ne peut plus échouer à mi-parcours. Les rotations d'`Orientation` sont des `switch` explicites, indépendants de l'ordre de déclaration des constantes.
+Value objects en `record` immuables qui valident leurs invariants dans leur constructeur compact (`Lawn`, `Position`, `Mower`), enums `Orientation` (rotation gauche/droite, déplacement unitaire) et `Instruction`. Les déplacements renvoient une nouvelle instance. La séquence d'instructions est conservée sous forme de `String`, validée point de code par point de code (`Instruction.fromCode`, qui cite ainsi en entier un caractère hors BMP invalide) dans le constructeur compact de `MowerProgram`, puis parcourue caractère par caractère, pas en `List<Instruction>` : la simulation ne travaille que sur une séquence déjà validée et ne peut plus échouer à mi-parcours. Les rotations d'`Orientation` sont des `switch` explicites, indépendants de l'ordre de déclaration des constantes.
 
 - *Écartée — tondeuse mutable* : défendable pour la performance, mais l'allocation de petits records est quasi gratuite sur la JVM, et l'immuabilité simplifie les tests par règle.
 - *Écartée — `List<Instruction>`* : jusqu'à 10⁷ références (40 à 80 Mo) pour une information déjà portée par la chaîne validée.
@@ -157,7 +157,6 @@ Dépendances de build et d'exécution, toutes disponibles sur Maven Central :
 | Dépendance | Portée | Usage |
 |---|---|---|
 | JDK 25 LTS, Maven 3.10 | build | compilation, packaging du jar exécutable |
-| Apache Commons Lang 3, Commons Collections 4 | runtime | tests de vide/blanc imposés par la convention |
 | JUnit 6, AssertJ | test | tests unitaires et d'intégration |
 | ArchUnit | test | `DomainPurityTest`, `ArchitectureTest` |
 | PIT (pitest-maven + pitest-junit5-plugin) | build | mutation testing du domaine, seuil 100 % dans `verify` |

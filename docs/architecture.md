@@ -8,7 +8,7 @@ Hexagonal à 3 couches (§ 1 de `conventions/java.md`) :
 
 - **`domain`** : modèle immuable et règles métier. Pur, sans I/O ni framework, ce que vérifie `DomainPurityTest` (ArchUnit).
 - **`application`** : `MowLawnUseCase` reçoit un `MowingPlan` déjà construit et renvoie les tondeuses finales. La couche ne dépend d'aucun adapter, ce que vérifie `ArchitectureTest` (ArchUnit) : chaque point d'entrée (CLI aujourd'hui, API demain) produit le plan dans son format et rend le résultat dans le sien.
-- **`infrastructure`** : adapters concrets, sans interface tant qu'il n'existe qu'une implémentation. `file` lit et analyse le fichier d'entrée, `cli` porte le point d'entrée, appelle le cas d'usage et rend son résultat sur stdout. `file` lit et analyse le fichier d'entrée, `cli` porte le point d'entrée et le rendu sur stdout.
+- **`infrastructure`** : adapters concrets, sans interface tant qu'il n'existe qu'une implémentation. `file` lit et analyse le fichier d'entrée, `cli` porte le point d'entrée, appelle le cas d'usage et rend son résultat sur stdout.
 
 ## Vue des classes
 
@@ -55,7 +55,7 @@ flowchart LR
   MowLawnUseCase -->|"run()"| MowingPlan
   MowerCli -->|"3. write(mowers)"| MowerOutputWriter
   MowerOutputWriter --> MowerFormatter
-  MowerCli -.->|"writeError(e), code 1 ; usage, code 2"| MowerOutputWriter
+  MowerCli -.->|"writeError(n, message) ou writeError(message), code 1 ; usage, code 2"| MowerOutputWriter
   MowerOutputWriter --> ErrorFormatter
 
   MowingPlan --> Lawn
