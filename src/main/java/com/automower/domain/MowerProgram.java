@@ -15,6 +15,7 @@ public record MowerProgram(Mower mower, String instructions) {
 
     public Mower runOn(OccupancyGrid grid) {
         Mower current = mower;
+        // séquence gardée en String et décodée à nouveau ici : une List<Instruction> de 10⁷ références coûterait 40 à 80 Mo de heap
         for (int i = 0; i < instructions.length(); i++) {
             current = current.execute(toInstruction(instructions.charAt(i)), grid);
         }
