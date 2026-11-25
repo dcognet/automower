@@ -12,8 +12,4 @@ public class InputFileException extends RuntimeException {
     public InputFileErrorCode getCode() {
         return code;
     }
-
-    public String getTitle() {
-        return code.getTitle();
-    }
 }
