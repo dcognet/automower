@@ -11,8 +11,8 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 class DomainPurityTest {
 
     @ArchTest
-    static final ArchRule domainShouldOnlyDependOnJavaLangAndUtilAndCommons = classes()
+    static final ArchRule domainShouldOnlyDependOnJavaLangAndUtil = classes()
             .that().resideInAPackage("com.automower.domain..")
             .should().onlyDependOnClassesThat()
-            .resideInAnyPackage("com.automower.domain..", "java.lang..", "java.util..", "org.apache.commons..");
+            .resideInAnyPackage("com.automower.domain..", "java.lang..", "java.util..");
 }

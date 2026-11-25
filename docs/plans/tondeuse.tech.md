@@ -134,7 +134,7 @@ JUnit 6 + AssertJ, conformément au § 9 de `conventions/java.md` (pas de Mockit
 
 - **tests unitaires** `*Test`, nommés `shouldX_whenY`, sur le domaine (rotations, déplacements, blocages, grille, validation par règle), sur le découpage des lignes et sur l'analyse du fichier, paramétrés par cas ;
 - **tests d'intégration** `*IntegrationTest`, nommés `action_contexte_resultat` avec javadoc de scénario en français, qui lancent le vrai point d'entrée sur des fichiers et comparent stdout et le code de sortie. Fixtures lisibles dans `src/test/resources` ; les cas en octets (BOM, `\r` isolé, UTF-8 invalide, fichier de 10 000 001 octets) sont générés par les tests et non commités. Chaque RM a au moins un cas qui la cite ; RM-12 est le test d'acceptation principal ;
-- **`DomainPurityTest`** (ArchUnit) : `domain` n'importe rien de `java.io`, `java.nio.file` ni d'aucune librairie hors Apache Commons ;
+- **`DomainPurityTest`** (ArchUnit) : `domain` ne dépend que de lui-même, de `java.lang` et de `java.util` : ni `java.io`, ni `java.nio.file`, ni aucune librairie ;
 - **`ArchitectureTest`** (ArchUnit) : `application` ne dépend pas de `infrastructure` ;
 - **mutation testing PIT** sur `com.automower.domain`, lancé par `mvn verify` avec un seuil de 100 % de mutants tués : un mutant survivant fait échouer le build et se corrige en renforçant les tests, jamais en réduisant le périmètre.
 
