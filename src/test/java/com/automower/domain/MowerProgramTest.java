@@ -57,6 +57,15 @@ class MowerProgramTest {
     }
 
     @Test
+    void shouldQuoteWholeCharacter_whenUnknownInstructionIsOutsideBasicMultilingualPlane() {
+        Mower mower = new Mower(new Position(0, 0), Orientation.NORTH);
+
+        BusinessValidationException exception = catchThrowableOfType(BusinessValidationException.class, () -> new MowerProgram(mower, "F😀"));
+
+        assertThat(exception).hasMessage("invalid instruction '😀'");
+    }
+
+    @Test
     void shouldRejectAtConstruction_whenSequenceIsEmpty() {
         Mower mower = new Mower(new Position(0, 0), Orientation.NORTH);
 
