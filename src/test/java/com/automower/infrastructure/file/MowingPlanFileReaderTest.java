@@ -1,8 +1,6 @@
 package com.automower.infrastructure.file;
 
 import com.automower.domain.MowingPlan;
-import com.automower.domain.exception.BusinessErrorCode;
-import com.automower.domain.exception.BusinessValidationException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.condition.EnabledOnOs;
@@ -39,20 +37,18 @@ class MowingPlanFileReaderTest {
     void shouldRejectWholeFile_whenPathDoesNotExist() {
         Path missing = tempDir.resolve("missing.txt");
 
-        BusinessValidationException exception = reject(missing);
+        InputFileException exception = reject(missing);
 
-        assertThat(exception.getCode()).isEqualTo(BusinessErrorCode.FILE_NOT_FOUND);
+        assertThat(exception.getCode()).isEqualTo(InputFileErrorCode.FILE_NOT_FOUND);
         assertThat(exception).hasMessage("file not found: " + missing);
-        assertThat(exception.getLineNumber()).isEmpty();
     }
 
     @Test
     void shouldRejectWholeFile_whenPathIsDirectory() {
-        BusinessValidationException exception = reject(tempDir);
+        InputFileException exception = reject(tempDir);
 
-        assertThat(exception.getCode()).isEqualTo(BusinessErrorCode.FILE_NOT_READABLE);
+        assertThat(exception.getCode()).isEqualTo(InputFileErrorCode.FILE_NOT_READABLE);
         assertThat(exception).hasMessage("path is a directory: " + tempDir);
-        assertThat(exception.getLineNumber()).isEmpty();
     }
 
     @Test
@@ -63,19 +59,18 @@ class MowingPlanFileReaderTest {
         // root lit tous les fichiers quels que soient les droits : le cas n'est pas reproductible
         assumeFalse(Files.isReadable(file));
 
-        BusinessValidationException exception = reject(file);
+        InputFileException exception = reject(file);
 
-        assertThat(exception.getCode()).isEqualTo(BusinessErrorCode.FILE_NOT_READABLE);
+        assertThat(exception.getCode()).isEqualTo(InputFileErrorCode.FILE_NOT_READABLE);
         assertThat(exception).hasMessage("file is not readable: " + file);
     }
 
     @Test
     void shouldRejectWholeFile_whenFileIsEmpty() throws IOException {
-        BusinessValidationException exception = reject(write(new byte[0]));
+        InputFileException exception = reject(write(new byte[0]));
 
-        assertThat(exception.getCode()).isEqualTo(BusinessErrorCode.EMPTY_FILE);
+        assertThat(exception.getCode()).isEqualTo(InputFileErrorCode.EMPTY_FILE);
         assertThat(exception).hasMessage("file is empty");
-        assertThat(exception.getLineNumber()).isEmpty();
     }
 
     @Test
@@ -94,11 +89,10 @@ class MowingPlanFileReaderTest {
         // octets invalides en UTF-8 et en format : seule la taille doit être signalée
         Arrays.fill(content, (byte) 0xFF);
 
-        BusinessValidationException exception = reject(write(content));
+        InputFileException exception = reject(write(content));
 
-        assertThat(exception.getCode()).isEqualTo(BusinessErrorCode.FILE_TOO_LARGE);
+        assertThat(exception.getCode()).isEqualTo(InputFileErrorCode.FILE_TOO_LARGE);
         assertThat(exception).hasMessage("file size 10000001 bytes exceeds limit of 10000000 bytes");
-        assertThat(exception.getLineNumber()).isEmpty();
     }
 
     @Test
@@ -110,30 +104,31 @@ class MowingPlanFileReaderTest {
         // un pipe nommé annonce une taille de 0 : seule la lecture plafonnée borne la mémoire
         Thread producer = Thread.ofPlatform().daemon().start(() -> streamMoreThanLimit(fifo));
 
-        BusinessValidationException exception = reject(fifo);
+        InputFileException exception = reject(fifo);
 
-        assertThat(exception.getCode()).isEqualTo(BusinessErrorCode.FILE_TOO_LARGE);
+        assertThat(exception.getCode()).isEqualTo(InputFileErrorCode.FILE_TOO_LARGE);
         assertThat(exception).hasMessage("file size exceeds limit of 10000000 bytes");
-        assertThat(exception.getLineNumber()).isEmpty();
         producer.join(5_000);
     }
 
     @ParameterizedTest
     @MethodSource("invalidUtf8Contents")
     void shouldRejectWholeFile_whenContentIsNotValidUtf8(byte[] content) throws IOException {
-        BusinessValidationException exception = reject(write(content));
+        InputFileException exception = reject(write(content));
 
-        assertThat(exception.getCode()).isEqualTo(BusinessErrorCode.INVALID_ENCODING);
+        assertThat(exception.getCode()).isEqualTo(InputFileErrorCode.INVALID_ENCODING);
         assertThat(exception).hasMessage("file is not valid UTF-8");
-        assertThat(exception.getLineNumber()).isEmpty();
     }
 
     @Test
     void shouldReportFormatErrorWithLineNumber_whenNonAsciiCharacterIsValidUtf8() throws IOException {
-        BusinessValidationException exception = reject(write(utf8("5 5\n1 é N\nF\n")));
+        Path file = write(utf8("5 5\n1 é N\nF\n"));
 
-        assertThat(exception.getCode()).isEqualTo(BusinessErrorCode.INVALID_COORDINATE);
-        assertThat(exception.getLineNumber()).hasValue(2);
+        InvalidLineException exception = catchThrowableOfType(InvalidLineException.class, () -> reader.read(file));
+
+        assertThat(exception.getCause()).isInstanceOf(InputFileException.class);
+        assertThat(((InputFileException) exception.getCause()).getCode()).isEqualTo(InputFileErrorCode.INVALID_COORDINATE);
+        assertThat(exception.getLineNumber()).isEqualTo(2);
     }
 
     private static Stream<Arguments> invalidUtf8Contents() {
@@ -167,8 +162,8 @@ class MowingPlanFileReaderTest {
         return content;
     }
 
-    private BusinessValidationException reject(Path path) {
-        return catchThrowableOfType(BusinessValidationException.class, () -> reader.read(path));
+    private InputFileException reject(Path path) {
+        return catchThrowableOfType(InputFileException.class, () -> reader.read(path));
     }
 
     private Path write(byte[] content) throws IOException {
