@@ -10,16 +10,20 @@ public record MowerProgram(Mower mower, String instructions) {
             throw new BusinessValidationException(BusinessErrorCode.EMPTY_INSTRUCTIONS, "empty instruction sequence");
         }
         // séquence validée à la construction : la simulation ne peut plus échouer
-        for (int i = 0; i < instructions.length(); i++) {
-            Instruction.fromCode(instructions.charAt(i));
-        }
+        instructions.codePoints().forEach(MowerProgram::toInstruction);
     }
 
     public Mower runOn(OccupancyGrid grid) {
         Mower current = mower;
+        // séquence gardée en String et décodée à nouveau ici : une List<Instruction> de 10⁷ références coûterait 40 à 80 Mo de heap
         for (int i = 0; i < instructions.length(); i++) {
-            current = current.execute(Instruction.fromCode(instructions.charAt(i)), grid);
+            current = current.execute(toInstruction(instructions.charAt(i)), grid);
         }
         return current;
+    }
+
+    // découpage par point de code : un caractère hors BMP (emoji) est cité entier dans le message d'erreur
+    private static Instruction toInstruction(int codePoint) {
+        return Instruction.fromCode(Character.toString(codePoint));
     }
 }

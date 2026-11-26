@@ -7,7 +7,6 @@ import com.automower.domain.MowingPlan;
 import com.automower.domain.Orientation;
 import com.automower.domain.Position;
 import com.automower.domain.StartingPositions;
-import com.automower.domain.exception.BusinessErrorCode;
 import com.automower.domain.exception.BusinessValidationException;
 
 import java.util.ArrayList;
@@ -35,23 +34,23 @@ public final class MowingPlanFileMapper {
 
     public static MowingPlan toMowingPlan(List<String> lines) {
         Lawn lawn = mapLine(lines, LAWN_LINE_INDEX, MowingPlanFileMapper::toLawn);
-        requireLine(lines, FIRST_MOWER_LINE_INDEX, BusinessErrorCode.MISSING_MOWER, "missing mower position line");
+        requireLine(lines, FIRST_MOWER_LINE_INDEX, InputFileErrorCode.MISSING_MOWER, "missing mower position line");
         StartingPositions startingPositions = new StartingPositions(lawn);
         List<MowerProgram> programs = new ArrayList<>();
         // chaque tondeuse est un couple de lignes consécutives : position, puis instructions
         // les départs sont aussi validés par MowingPlan, mais ici au fil des lignes : la première erreur du fichier doit primer (RM-23)
         for (int i = FIRST_MOWER_LINE_INDEX; i < lines.size(); i += LINES_PER_MOWER) {
             Mower mower = mapLine(lines, i, line -> toStartingMower(line, startingPositions));
-            requireLine(lines, i + 1, BusinessErrorCode.MISSING_INSTRUCTIONS, "missing instruction line");
+            requireLine(lines, i + 1, InputFileErrorCode.MISSING_INSTRUCTIONS, "missing instruction line");
             programs.add(mapLine(lines, i + 1, instructions -> new MowerProgram(mower, instructions)));
         }
         return new MowingPlan(lawn, programs);
     }
 
-    private static void requireLine(List<String> lines, int index, BusinessErrorCode code, String detail) {
+    private static void requireLine(List<String> lines, int index, InputFileErrorCode code, String detail) {
         // une ligne absente est signalée sur la ligne attendue
         if (index >= lines.size()) {
-            throw new BusinessValidationException(code, detail).atLine(lineNumber(index));
+            throw new InvalidLineException(lineNumber(index), new InputFileException(code, detail));
         }
     }
 
@@ -60,22 +59,24 @@ public final class MowingPlanFileMapper {
             String line = lines.get(index);
             checkLineStructure(line, index);
             return mapper.apply(line);
+        } catch (InputFileException exception) {
+            throw new InvalidLineException(lineNumber(index), exception);
         } catch (BusinessValidationException exception) {
-            throw exception.atLine(lineNumber(index));
+            throw new InvalidLineException(lineNumber(index), exception);
         }
     }
 
     private static void checkLineStructure(String line, int index) {
         // le BOM est décodé en U+FEFF : il ne peut apparaître qu'en tête de la première ligne
         if (index == LAWN_LINE_INDEX && !line.isEmpty() && line.charAt(0) == BYTE_ORDER_MARK) {
-            throw new BusinessValidationException(BusinessErrorCode.UNEXPECTED_BYTE_ORDER_MARK, "unexpected byte order mark");
+            throw new InputFileException(InputFileErrorCode.UNEXPECTED_BYTE_ORDER_MARK, "unexpected byte order mark");
         }
         if (line.isEmpty()) {
-            throw new BusinessValidationException(BusinessErrorCode.EMPTY_LINE, "empty line");
+            throw new InputFileException(InputFileErrorCode.EMPTY_LINE, "empty line");
         }
         // un \r suivi de \n a été retiré au découpage : celui qui reste est une fin de ligne invalide
         if (line.indexOf(CARRIAGE_RETURN) >= 0) {
-            throw new BusinessValidationException(BusinessErrorCode.INVALID_CHARACTER, "invalid character '" + CARRIAGE_RETURN + "'");
+            throw new InputFileException(InputFileErrorCode.INVALID_CHARACTER, "invalid character '" + CARRIAGE_RETURN + "'");
         }
     }
 
@@ -86,7 +87,7 @@ public final class MowingPlanFileMapper {
     private static Lawn toLawn(String line) {
         Matcher matcher = LAWN_LINE.matcher(line);
         if (!matcher.matches()) {
-            throw new BusinessValidationException(BusinessErrorCode.INVALID_LAWN_LINE, "lawn line must contain 2 values separated by a single space");
+            throw new InputFileException(InputFileErrorCode.INVALID_LAWN_LINE, "lawn line must contain 2 values separated by a single space");
         }
         return new Lawn(toCoordinate(matcher.group(1)), toCoordinate(matcher.group(2)));
     }
@@ -100,7 +101,7 @@ public final class MowingPlanFileMapper {
     private static Mower toMower(String line) {
         Matcher matcher = POSITION_LINE.matcher(line);
         if (!matcher.matches()) {
-            throw new BusinessValidationException(BusinessErrorCode.INVALID_POSITION_LINE, "position line must contain 3 values separated by a single space");
+            throw new InputFileException(InputFileErrorCode.INVALID_POSITION_LINE, "position line must contain 3 values separated by a single space");
         }
         Position position = new Position(toCoordinate(matcher.group(1)), toCoordinate(matcher.group(2)));
         return new Mower(position, Orientation.fromCode(matcher.group(3)));
@@ -108,7 +109,7 @@ public final class MowingPlanFileMapper {
 
     private static int toCoordinate(String value) {
         if (!COORDINATE.matcher(value).matches()) {
-            throw new BusinessValidationException(BusinessErrorCode.INVALID_COORDINATE, "invalid coordinate '" + value + "'");
+            throw new InputFileException(InputFileErrorCode.INVALID_COORDINATE, "invalid coordinate '" + value + "'");
         }
         return Integer.parseInt(value);
     }

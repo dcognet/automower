@@ -13,13 +13,13 @@ class InstructionTest {
 
     @ParameterizedTest
     @CsvSource({"L, LEFT", "R, RIGHT", "F, FORWARD"})
-    void shouldMapCodeToInstruction_whenCodeIsKnown(char code, Instruction expected) {
+    void shouldMapCodeToInstruction_whenCodeIsKnown(String code, Instruction expected) {
         assertThat(Instruction.fromCode(code)).isEqualTo(expected);
     }
 
     @Test
     void shouldRejectWithInvalidInstructionCode_whenCodeIsUnknown() {
-        BusinessValidationException exception = catchThrowableOfType(BusinessValidationException.class, () -> Instruction.fromCode('A'));
+        BusinessValidationException exception = catchThrowableOfType(BusinessValidationException.class, () -> Instruction.fromCode("A"));
 
         assertThat(exception.getCode()).isEqualTo(BusinessErrorCode.INVALID_INSTRUCTION);
         assertThat(exception.getTitle()).isEqualTo("Invalid instruction");

@@ -2,8 +2,9 @@ package com.automower.infrastructure.cli;
 
 import com.automower.application.MowLawnUseCase;
 import com.automower.domain.MowingPlan;
-import com.automower.domain.exception.BusinessErrorCode;
-import com.automower.domain.exception.BusinessValidationException;
+import com.automower.infrastructure.file.InputFileErrorCode;
+import com.automower.infrastructure.file.InputFileException;
+import com.automower.infrastructure.file.InvalidLineException;
 import com.automower.infrastructure.file.MowingPlanFileReader;
 
 import java.io.IOException;
@@ -50,9 +51,12 @@ public class MowerCli {
             MowingPlan plan = mowingPlanFileReader.read(toPath(args[0]));
             mowerOutputWriter.write(mowLawnUseCase.mow(plan));
             return EXIT_SUCCESS;
-        } catch (BusinessValidationException exception) {
+        } catch (InvalidLineException exception) {
             // le plan est validé en entier avant la simulation : aucune position n'a été écrite
-            mowerOutputWriter.writeError(exception);
+            mowerOutputWriter.writeError(exception.getLineNumber(), exception.getMessage());
+            return EXIT_ERROR;
+        } catch (InputFileException exception) {
+            mowerOutputWriter.writeError(exception.getMessage());
             return EXIT_ERROR;
         }
     }
@@ -61,7 +65,7 @@ public class MowerCli {
         try {
             return Path.of(argument);
         } catch (InvalidPathException exception) {
-            throw new BusinessValidationException(BusinessErrorCode.FILE_NOT_FOUND, "file not found: " + argument);
+            throw new InputFileException(InputFileErrorCode.FILE_NOT_FOUND, "file not found: " + argument);
         }
     }
 }

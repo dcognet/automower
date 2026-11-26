@@ -1,8 +1,6 @@
 package com.automower.infrastructure.file;
 
 import com.automower.domain.MowingPlan;
-import com.automower.domain.exception.BusinessErrorCode;
-import com.automower.domain.exception.BusinessValidationException;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -23,20 +21,20 @@ public class MowingPlanFileReader {
         requireSizeWithinLimit(path);
         byte[] content = readAtMostLimit(path);
         if (content.length == 0) {
-            throw new BusinessValidationException(BusinessErrorCode.EMPTY_FILE, "file is empty");
+            throw new InputFileException(InputFileErrorCode.EMPTY_FILE, "file is empty");
         }
         return MowingPlanFileMapper.toMowingPlan(LineSplitter.split(decodeUtf8(content)));
     }
 
     private static void requireReadableFile(Path path) {
         if (!Files.exists(path)) {
-            throw new BusinessValidationException(BusinessErrorCode.FILE_NOT_FOUND, "file not found: " + path);
+            throw new InputFileException(InputFileErrorCode.FILE_NOT_FOUND, "file not found: " + path);
         }
         if (Files.isDirectory(path)) {
-            throw new BusinessValidationException(BusinessErrorCode.FILE_NOT_READABLE, "path is a directory: " + path);
+            throw new InputFileException(InputFileErrorCode.FILE_NOT_READABLE, "path is a directory: " + path);
         }
         if (!Files.isReadable(path)) {
-            throw new BusinessValidationException(BusinessErrorCode.FILE_NOT_READABLE, "file is not readable: " + path);
+            throw new InputFileException(InputFileErrorCode.FILE_NOT_READABLE, "file is not readable: " + path);
         }
     }
 
@@ -49,10 +47,7 @@ public class MowingPlanFileReader {
             throw notReadable(path);
         }
         if (size > MAX_FILE_SIZE) {
-            throw new BusinessValidationException(
-                    BusinessErrorCode.FILE_TOO_LARGE,
-                    "file size " + size + " bytes exceeds limit of " + MAX_FILE_SIZE + " bytes"
-            );
+            throw new InputFileException(InputFileErrorCode.FILE_TOO_LARGE, "file size " + size + " bytes exceeds limit of " + MAX_FILE_SIZE + " bytes");
         }
     }
 
@@ -65,7 +60,7 @@ public class MowingPlanFileReader {
             throw notReadable(path);
         }
         if (content.length > MAX_FILE_SIZE) {
-            throw new BusinessValidationException(BusinessErrorCode.FILE_TOO_LARGE, "file size exceeds limit of " + MAX_FILE_SIZE + " bytes");
+            throw new InputFileException(InputFileErrorCode.FILE_TOO_LARGE, "file size exceeds limit of " + MAX_FILE_SIZE + " bytes");
         }
         return content;
     }
@@ -78,11 +73,11 @@ public class MowingPlanFileReader {
                     .decode(ByteBuffer.wrap(content))
                     .toString();
         } catch (CharacterCodingException exception) {
-            throw new BusinessValidationException(BusinessErrorCode.INVALID_ENCODING, "file is not valid UTF-8");
+            throw new InputFileException(InputFileErrorCode.INVALID_ENCODING, "file is not valid UTF-8");
         }
     }
 
-    private static BusinessValidationException notReadable(Path path) {
-        return new BusinessValidationException(BusinessErrorCode.FILE_NOT_READABLE, "file is not readable: " + path);
+    private static InputFileException notReadable(Path path) {
+        return new InputFileException(InputFileErrorCode.FILE_NOT_READABLE, "file is not readable: " + path);
     }
 }

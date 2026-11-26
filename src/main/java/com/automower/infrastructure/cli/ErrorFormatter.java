@@ -1,7 +1,5 @@
 package com.automower.infrastructure.cli;
 
-import com.automower.domain.exception.BusinessValidationException;
-
 import java.util.stream.Collectors;
 
 public final class ErrorFormatter {
@@ -12,9 +10,8 @@ public final class ErrorFormatter {
         // vide
     }
 
-    public static String format(BusinessValidationException exception) {
-        String location = exception.getLineNumber().isPresent() ? " line " + exception.getLineNumber().getAsInt() : "";
-        return PREFIX + location + ": " + escapeInvisibleCharacters(exception.getMessage());
+    public static String format(int lineNumber, String description) {
+        return PREFIX + " line " + lineNumber + ": " + escapeInvisibleCharacters(description);
     }
 
     public static String format(String description) {

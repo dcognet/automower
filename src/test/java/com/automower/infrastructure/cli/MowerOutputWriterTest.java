@@ -3,8 +3,6 @@ package com.automower.infrastructure.cli;
 import com.automower.domain.Mower;
 import com.automower.domain.Orientation;
 import com.automower.domain.Position;
-import com.automower.domain.exception.BusinessErrorCode;
-import com.automower.domain.exception.BusinessValidationException;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayOutputStream;
@@ -40,18 +38,10 @@ class MowerOutputWriterTest {
 
     @Test
     void shouldWriteErrorWithLineNumber_whenErrorIsLocatedAtLine() throws IOException {
-        mowerOutputWriter.writeError(new BusinessValidationException(BusinessErrorCode.INVALID_ORIENTATION, "invalid orientation 'X'").atLine(4));
+        mowerOutputWriter.writeError(4, "invalid orientation 'X'");
         mowerOutputWriter.flush();
 
         assertThat(stdout.toByteArray()).isEqualTo("ERROR line 4: invalid orientation 'X'\n".getBytes(StandardCharsets.UTF_8));
-    }
-
-    @Test
-    void shouldWriteErrorWithoutLineNumber_whenErrorHasNoLine() throws IOException {
-        mowerOutputWriter.writeError(new BusinessValidationException(BusinessErrorCode.INVALID_INSTRUCTION, "invalid instruction 'A'"));
-        mowerOutputWriter.flush();
-
-        assertThat(stdout.toString(StandardCharsets.UTF_8)).isEqualTo("ERROR: invalid instruction 'A'\n");
     }
 
     @Test

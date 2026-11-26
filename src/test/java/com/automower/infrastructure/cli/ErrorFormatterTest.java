@@ -1,7 +1,5 @@
 package com.automower.infrastructure.cli;
 
-import com.automower.domain.exception.BusinessErrorCode;
-import com.automower.domain.exception.BusinessValidationException;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -15,9 +13,7 @@ class ErrorFormatterTest {
     @ParameterizedTest
     @MethodSource("quotedCharacters")
     void shouldEscapeOnlyInvisibleCharacters_whenMessageQuotesThem(String quoted, String expectedQuoted) {
-        BusinessValidationException exception = new BusinessValidationException(BusinessErrorCode.INVALID_CHARACTER, "invalid value '" + quoted + "'");
-
-        assertThat(ErrorFormatter.format(exception.atLine(2))).isEqualTo("ERROR line 2: invalid value '" + expectedQuoted + "'");
+        assertThat(ErrorFormatter.format(2, "invalid value '" + quoted + "'")).isEqualTo("ERROR line 2: invalid value '" + expectedQuoted + "'");
     }
 
     private static Stream<Arguments> quotedCharacters() {
