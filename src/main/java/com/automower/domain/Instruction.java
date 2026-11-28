@@ -8,11 +8,11 @@ public enum Instruction {
     RIGHT,
     FORWARD;
 
-    public static Instruction fromCode(char code) {
+    public static Instruction fromCode(String code) {
         return switch (code) {
-            case 'L' -> LEFT;
-            case 'R' -> RIGHT;
-            case 'F' -> FORWARD;
+            case "L" -> LEFT;
+            case "R" -> RIGHT;
+            case "F" -> FORWARD;
             default -> throw new BusinessValidationException(BusinessErrorCode.INVALID_INSTRUCTION, "invalid instruction '" + code + "'");
         };
     }

@@ -44,7 +44,7 @@ flowchart LR
 
 **Delta** : un seul nouvel exécutable apparaît, découpé en trois couches.
 
-- **`domain`** (pur : ni I/O, ni framework) porte le modèle — pelouse, position, orientation, instruction, tondeuse —, la grille d'occupation, la simulation (RM-05 à RM-10, RM-15, RM-25), la validation fonctionnelle des valeurs (invariants des value objects, `Orientation.fromCode`, `Instruction.fromCode` : RM-04, RM-14 à RM-19, RM-24 à RM-26) et le catalogue d'erreurs métier. Il ne connaît ni la notion de ligne ni le format du fichier. Sa pureté est garantie par un test ArchUnit (`DomainPurityTest`).
+- **`domain`** (pur : ni I/O, ni framework) porte le modèle — pelouse, position, orientation, instruction, tondeuse —, la grille d'occupation, la simulation (RM-05 à RM-10, RM-15, RM-25), la validation fonctionnelle des valeurs (invariants des value objects, `Orientation.fromCode`, `Instruction.fromCode` : RM-04, RM-14 à RM-19, RM-24 à RM-26) et le catalogue des erreurs métier, sans les erreurs de fichier ni de format. Il ne connaît ni la notion de ligne ni le format du fichier. Sa pureté est garantie par un test ArchUnit (`DomainPurityTest`).
 - **`application`** porte un cas d'usage unique, `MowLawnUseCase` : il reçoit le modèle validé (`MowingPlan`), déclenche la simulation et renvoie les positions finales, dans l'ordre du fichier. Il ne dépend d'aucun adapter : chaque point d'entrée (la CLI, une future API) construit le modèle depuis son format et rend le résultat dans le sien. Un test ArchUnit (`ArchitectureTest`) interdit toute dépendance `application → infrastructure`.
 - **`infrastructure`** porte tout ce qui touche au monde extérieur : lecture du fichier (existence, dossier, droits, taille RM-27, décodage UTF-8 RM-30, découpage des lignes RM-21), analyse syntaxique ligne à ligne vers le modèle du domaine (RM-20 à RM-22, RM-28, RM-29, RM-31), point d'entrée CLI (arguments, code de sortie), rendu sur stdout (RM-11, RM-32).
 
@@ -54,7 +54,7 @@ Flux : point d'entrée → lecture et analyse (erreurs « fichier entier » puis
 
 ### Stack : Java 25 LTS + Maven, sans framework applicatif
 
-Jar exécutable (`Main-Class` dans le manifeste, dépendances embarquées si nécessaire). Librairies utilitaires autorisées, notamment Apache Commons Lang (`StringUtils`) et Collections (`CollectionUtils`) pour les tests de vide/blanc imposés par la convention de l'équipe.
+Jar exécutable (`Main-Class` dans le manifeste, dépendances embarquées si nécessaire). Librairies utilitaires autorisées hors du domaine, notamment Apache Commons Lang (`StringUtils`) et Collections (`CollectionUtils`) pour les tests de vide/blanc imposés par la convention de l'équipe ; aucune n'est utilisée aujourd'hui, elles s'ajoutent au `pom.xml` au premier besoin.
 
 - *Écartée — Spring Boot* (arbitrage utilisateur) : un conteneur IoC et son temps de démarrage sont surdimensionnés pour une CLI qui lit un fichier et écrit sur stdout ; l'injection par constructeur se fait à la main dans le point d'entrée.
 - *Écartées — Kotlin, Python* (arbitrage utilisateur).
@@ -88,7 +88,7 @@ Ordre des contrôles « fichier entier », chacun bloquant le suivant : chemin a
 
 Chaque type de ligne est reconnu par une regex ancrée en ASCII explicite : coordonnée `0|[1-9][0-9]*`, séparateur U+0020 unique, orientation `[NESW]`, instructions `[LRF]+`. Le nombre de valeurs (RM-31), le séparateur (RM-29) et l'écriture des coordonnées (RM-28) sont ainsi vérifiés d'un seul geste. La longueur d'une coordonnée est bornée avant conversion (40 075 016 tient sur 8 chiffres et dans un `int`), ce qui écarte tout dépassement d'entier. La conversion code → enum (`Orientation.fromCode`, `Instruction.fromCode`) est l'unique point de validation de ces valeurs fermées.
 
-L'analyse vit dans `infrastructure.file` (mapper statique `MowingPlanFileMapper`) : elle traduit le format texte en objets du domaine, dont les constructeurs et les `fromCode` portent la validation fonctionnelle. Une `BusinessValidationException` levée par le domaine pendant le mapping d'une ligne y est enrichie du numéro de cette ligne (RM-32). Une future source (API, Kafka) aurait son propre mapper vers le même modèle, sans toucher au domaine ni au cas d'usage.
+L'analyse vit dans `infrastructure.file` (mapper statique `MowingPlanFileMapper`) : elle traduit le format texte en objets du domaine, dont les constructeurs et les `fromCode` portent la validation fonctionnelle. Une erreur levée pendant le mapping d'une ligne, de format ou métier, est enveloppée dans une `InvalidLineException` qui porte le numéro de cette ligne (RM-32). Une future source (API, Kafka) aurait son propre mapper vers le même modèle, sans toucher au domaine ni au cas d'usage.
 
 - *Écartée — analyse dans le domaine* : le domaine connaîtrait le format d'un fichier (lignes, séparateur, position des valeurs), inutilisable pour une autre source.
 - *Écartée — DTO intermédiaire commun aux sources* : chaque source a son propre format ; le point commun est le modèle du domaine. Pas d'interface de lecture tant qu'il n'existe qu'une source (§ 1 de `conventions/java.md`).
@@ -97,9 +97,10 @@ L'analyse vit dans `infrastructure.file` (mapper statique `MowingPlanFileMapper`
 
 ### Erreurs : catalogue de codes et exception métier, arrêt à la première
 
-Application du § 3 « Validation » de `conventions/java.md`, adapté à une CLI : un enum `BusinessErrorCode` (un code stable par cause : orientation invalide, instruction invalide, position hors pelouse, départ en doublon, ligne d'instructions manquante, fichier trop gros, encodage invalide…) et une `BusinessValidationException` portant ce code, une description en anglais et un **numéro de ligne optionnel** (absent pour les erreurs fichier entier de RM-23). Jamais d'`IllegalArgumentException` pour une règle métier. L'analyse est un **passage unique dans l'ordre des lignes**, fail-fast : la première erreur rencontrée est celle exigée par RM-23. Le point d'entrée est le seul à traduire l'exception en texte RM-32 et en code de sortie.
+Inspiré du § 3 « Validation » de `conventions/java.md`, adapté à une CLI, avec deux catalogues au lieu d'un : dans le domaine, un enum `BusinessErrorCode` (un code stable par règle métier : dimension de pelouse, départ hors pelouse ou en doublon, orientation ou instruction invalide, séquence vide) et une `BusinessValidationException` portant ce code et une description en anglais ; dans `infrastructure.file`, un enum `InputFileErrorCode` (fichier absent, illisible, vide, trop gros, encodage invalide, ligne vide ou mal formée, coordonnée invalide, ligne manquante…) et une `InputFileException`. Le numéro de ligne, notion propre au fichier, n'appartient à aucune des deux : une `InvalidLineException` l'ajoute à l'erreur d'une ligne, quelle que soit sa famille ; les erreurs fichier entier de RM-23 n'en ont pas. Jamais d'`IllegalArgumentException` pour une règle métier. L'analyse est un **passage unique dans l'ordre des lignes**, fail-fast : la première erreur rencontrée est celle exigée par RM-23. Le point d'entrée est le seul à traduire l'exception en texte RM-32 et en code de sortie.
 
 - *Écartée — accumulation des erreurs* (type `Result`/`Validation`) : RM-23 ne demande que la première ; accumuler ajoute de la complexité sans consommateur.
+- *Écartée — catalogue unique dans `domain/exception/`*, comme le prévoit la convention (arbitrage utilisateur) : le domaine y déclarerait des erreurs de fichier et de format (encodage, BOM, ligne vide…) et un numéro de ligne, alors qu'il ne connaît pas le format du fichier ; une autre source (API) n'en aurait que faire.
 
 ### Occupation de la pelouse : grille creuse
 
@@ -110,7 +111,7 @@ Un `HashSet<Position>` initialisé avec toutes les positions de départ (RM-25) 
 
 ### Modèle du domaine immuable
 
-Value objects en `record` immuables qui valident leurs invariants dans leur constructeur compact (`Lawn`, `Position`, `Mower`), enums `Orientation` (rotation gauche/droite, déplacement unitaire) et `Instruction`. Les déplacements renvoient une nouvelle instance. La séquence d'instructions est conservée sous forme de `String`, validée caractère par caractère (`Instruction.fromCode`) dans le constructeur compact de `MowerProgram`, puis parcourue caractère par caractère, pas en `List<Instruction>` : la simulation ne travaille que sur une séquence déjà validée et ne peut plus échouer à mi-parcours. Les rotations d'`Orientation` sont des `switch` explicites, indépendants de l'ordre de déclaration des constantes.
+Value objects en `record` immuables qui valident leurs invariants dans leur constructeur compact (`Lawn`, `Position`, `Mower`), enums `Orientation` (rotation gauche/droite, déplacement unitaire) et `Instruction`. Les déplacements renvoient une nouvelle instance. La séquence d'instructions est conservée sous forme de `String`, validée point de code par point de code (`Instruction.fromCode`, qui cite ainsi en entier un caractère hors BMP invalide) dans le constructeur compact de `MowerProgram`, puis parcourue caractère par caractère, pas en `List<Instruction>` : la simulation ne travaille que sur une séquence déjà validée et ne peut plus échouer à mi-parcours. Les rotations d'`Orientation` sont des `switch` explicites, indépendants de l'ordre de déclaration des constantes.
 
 - *Écartée — tondeuse mutable* : défendable pour la performance, mais l'allocation de petits records est quasi gratuite sur la JVM, et l'immuabilité simplifie les tests par règle.
 - *Écartée — `List<Instruction>`* : jusqu'à 10⁷ références (40 à 80 Mo) pour une information déjà portée par la chaîne validée.
@@ -133,7 +134,7 @@ JUnit 6 + AssertJ, conformément au § 9 de `conventions/java.md` (pas de Mockit
 
 - **tests unitaires** `*Test`, nommés `shouldX_whenY`, sur le domaine (rotations, déplacements, blocages, grille, validation par règle), sur le découpage des lignes et sur l'analyse du fichier, paramétrés par cas ;
 - **tests d'intégration** `*IntegrationTest`, nommés `action_contexte_resultat` avec javadoc de scénario en français, qui lancent le vrai point d'entrée sur des fichiers et comparent stdout et le code de sortie. Fixtures lisibles dans `src/test/resources` ; les cas en octets (BOM, `\r` isolé, UTF-8 invalide, fichier de 10 000 001 octets) sont générés par les tests et non commités. Chaque RM a au moins un cas qui la cite ; RM-12 est le test d'acceptation principal ;
-- **`DomainPurityTest`** (ArchUnit) : `domain` n'importe rien de `java.io`, `java.nio.file` ni d'aucune librairie hors Apache Commons ;
+- **`DomainPurityTest`** (ArchUnit) : `domain` ne dépend que de lui-même, de `java.lang` et de `java.util` : ni `java.io`, ni `java.nio.file`, ni aucune librairie ;
 - **`ArchitectureTest`** (ArchUnit) : `application` ne dépend pas de `infrastructure` ;
 - **mutation testing PIT** sur `com.automower.domain`, lancé par `mvn verify` avec un seuil de 100 % de mutants tués : un mutant survivant fait échouer le build et se corrige en renforçant les tests, jamais en réduisant le périmètre.
 
@@ -156,7 +157,6 @@ Dépendances de build et d'exécution, toutes disponibles sur Maven Central :
 | Dépendance | Portée | Usage |
 |---|---|---|
 | JDK 25 LTS, Maven 3.10 | build | compilation, packaging du jar exécutable |
-| Apache Commons Lang 3, Commons Collections 4 | runtime | tests de vide/blanc imposés par la convention |
 | JUnit 6, AssertJ | test | tests unitaires et d'intégration |
 | ArchUnit | test | `DomainPurityTest`, `ArchitectureTest` |
 | PIT (pitest-maven + pitest-junit5-plugin) | build | mutation testing du domaine, seuil 100 % dans `verify` |

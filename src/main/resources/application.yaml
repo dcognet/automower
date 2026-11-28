@@ -1,0 +1,9 @@
+spring:
+  application:
+    name: mower
+  jackson:
+    deserialization:
+      # un champ absent ou null est refusé plutôt que remplacé par 0 ou null
+      fail-on-missing-creator-properties: true
+      fail-on-null-creator-properties: true
+      fail-on-null-for-primitives: true
